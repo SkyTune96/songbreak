@@ -73,7 +73,8 @@ class Library:
         return self.root / song_id
 
     def new_id(self, title: str, source: Path) -> str:
-        base = re.sub(r"[^\w\-. ()&',!]+", " ", title).strip()[:80] or "song"
+        title = title.replace("×", "x")  # mashup titles; × isn't allowed in song ids
+        base = re.sub(r"\s+", " ", re.sub(r"[^\w\-. ()&',!]+", " ", title)).strip()[:80] or "song"
         song_id, n = base, 2
         while (self.root / song_id).exists():
             a = self.root / song_id / "analysis.json"
