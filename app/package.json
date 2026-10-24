@@ -1,7 +1,7 @@
 {
   "name": "songbreak",
   "productName": "Songbreak",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Break a song into its instruments, lyrics, structure and story, locally on your own GPU.",
   "main": "./out/main/index.js",
   "author": "SkyTune96",
@@ -20,7 +20,7 @@
     "productName": "Songbreak",
     "directories": {
       "buildResources": "build",
-      "output": "dist"
+      "output": "release/${version}"
     },
     "files": [
       "out/**/*",

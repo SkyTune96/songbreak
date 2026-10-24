@@ -3,6 +3,7 @@
 # (The desktop app does this for you on first run.)
 demucs==4.0.1
 transformers>=4.46,<5
+numpy
 accelerate
 librosa
 soundfile
@@ -11,4 +12,5 @@ imageio-ffmpeg
 requests
 psutil
 fastapi
+pydantic
 uvicorn[standard]

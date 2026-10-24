@@ -31,3 +31,5 @@ jobs:
           python-version: "3.12"
       # Syntax/import-level check only; the models need a GPU-sized environment.
       - run: python -m compileall -q songbreak scripts
+      # The app installs from requirements.txt; catch imports that were never added to it.
+      - run: python scripts/check_requirements.py

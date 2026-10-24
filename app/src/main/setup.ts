@@ -67,10 +67,15 @@ export async function runSetup(emit: Emit): Promise<boolean> {
     const base = findBasePython()
     if (!base) throw new Error('Python 3.10–3.13 was not found. Install Python 3.12 from python.org (or `winget install -e --id Python.Python.3.12`) and try again.')
     const venv = managedVenvDir()
-    let log = stage('Creating the Python environment')
-    if (existsSync(venv)) rmSync(venv, { recursive: true, force: true })
-    await run(base[0], [...base[1], '-m', 'venv', venv], log)
     const py = managedPython()
+    let log = stage('Creating the Python environment')
+    // Reuse a working environment so "Try again" only installs what's missing instead of ~5 GB again.
+    const reusable = existsSync(py) && spawnSync(py, ['-c', 'import sys'], { windowsHide: true }).status === 0
+    if (reusable) log('Reusing the existing environment')
+    else {
+      if (existsSync(venv)) rmSync(venv, { recursive: true, force: true })
+      await run(base[0], [...base[1], '-m', 'venv', venv], log)
+    }
 
     log = stage('Updating pip')
     await run(py, ['-m', 'pip', 'install', '--upgrade', 'pip', '--progress-bar', 'off'], log)
@@ -84,7 +89,8 @@ export async function runSetup(emit: Emit): Promise<boolean> {
     await run(py, ['-m', 'pip', 'install', '--progress-bar', 'off', '-r', join(pythonSourceDir(), 'requirements.txt')], log)
 
     log = stage('Checking the installation')
-    await run(py, ['-c', 'import torch, demucs, transformers, librosa, fastapi; print("torch", torch.__version__, "cuda", torch.cuda.is_available())'], log)
+    // Import what the engine's server imports, so a missing package fails here rather than at launch.
+    await run(py, ['-c', 'import torch, demucs, transformers, librosa, fastapi, uvicorn, psutil; print("torch", torch.__version__, "cuda", torch.cuda.is_available())'], log)
     emit({ step: total, total, label: 'Ready', done: true })
     return true
   } catch (e) {

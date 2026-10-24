@@ -81,7 +81,7 @@ cd songbreak/app && npm install
 npm run dev
 ```
 
-`npm run dist` builds the installer into `app/dist/`. The app looks for the engine's Python in
+`npm run dist` builds the installer into `app/release/<version>/`. The app looks for the engine's Python in
 this order: the `SONGBREAK_PYTHON` environment variable, the path chosen in Settings, then its
 own managed environment.
 
