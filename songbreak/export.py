@@ -82,9 +82,9 @@ def export(song_dir: Path, dest: Path, stems: list[str], fmt: str = "wav", split
     if lines:
         (out / "lyrics.lrc").write_text("".join(f"[{int(l['start'] // 60):02d}:{l['start'] % 60:05.2f}]{l['text']}\n"
                                                 for l in lines), encoding="utf-8")
-    chords_file = song_dir / "chords.json"
-    if chords_file.exists():
-        segs = [c for c in json.loads(chords_file.read_text(encoding="utf-8"))["segments"] if c["chord"] != "N"]
+    if a.get("structure"):
+        from .chords import get as get_chords  # detects and caches them if the song hasn't been opened since
+        segs = [c for c in get_chords(song_dir)["segments"] if c["chord"] != "N"]
         (out / "chords.txt").write_text("".join(f"{_fmt_time(c['start'])}\t{c['chord']}\n" for c in segs), encoding="utf-8")
     if sections:
         with open(out / "sections.csv", "w", newline="", encoding="utf-8") as f:
