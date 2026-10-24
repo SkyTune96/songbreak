@@ -53,6 +53,10 @@ narrator, conflict, arc, themes. Nothing is uploaded anywhere.
 - **Practice mode.** Slow down to 50/75/90% without changing pitch (Signalsmith-stretched stems,
   cached per speed), loop the current section sample-accurately (press L), and mute or solo any
   instrument to play along.
+- **Export for editors.** Pick stems (or all) as WAV or FLAC, optionally split per section, with
+  lyrics, a chord chart, section markers and a REAPER project. If **SoundCraft** is installed,
+  Export builds a SoundCraft session through `soundcraft-cli` (a coloured track per stem, tempo,
+  sections as ranges, at the stems' sample rate) and opens it.
 - **Folders.** ✦ Organize sorts your library into folders by shared story themes, named by the
   local LLM (or from the themes themselves without Ollama). Drag songs between folders, rename
   with a double-click, or right-click a song to move it, start a new AI-named folder, or delete it.

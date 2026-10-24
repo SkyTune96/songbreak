@@ -75,6 +75,7 @@ class ExportIn(BaseModel):
     format: str = "wav"
     split_sections: bool = False
     include_original: bool = False
+    soundcraft: bool = False
 
 
 def llm_available(model: str | None, host: str, default: str | None) -> str | None:
@@ -339,7 +340,13 @@ def create_app(library_root: Path) -> FastAPI:
         if not dest.is_dir():
             raise HTTPException(400, f"not a folder: {dest}")
         from .export import export
-        return export(d, dest, body.stems, body.format, body.split_sections, body.include_original)
+        return export(d, dest, body.stems, body.format, body.split_sections, body.include_original, body.soundcraft)
+
+    @app.get("/api/integrations")
+    def get_integrations():
+        """Editors Songbreak can build sessions for directly."""
+        from .export import soundcraft_cli
+        return {"soundcraft": soundcraft_cli() is not None}
 
     practice_lock = threading.Lock()
 

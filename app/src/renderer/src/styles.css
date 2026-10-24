@@ -355,6 +355,7 @@ input.rename { flex: 1; min-width: 0; font: inherit; color: var(--text); backgro
 .stem-check { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--line-2); border-radius: 8px; cursor: pointer; text-transform: capitalize; background: var(--bg-2); }
 .stem-check.on { background: var(--panel-2); }
 .export-options { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.ok-text { color: var(--ok); margin: 0; }
 .export-dir { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
 
 /* practice */

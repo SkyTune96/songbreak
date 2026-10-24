@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api } from '../api'
+import { api, type ExportResult } from '../api'
 import type { Song } from '../types'
 import { STEM_ORDER, stemColor } from '../util'
 
@@ -21,9 +21,15 @@ export function ExportDialog({ song, onClose }: { song: Song; onClose: () => voi
   const [split, setSplit] = useState(false)
   const [dir, setDir] = useState<string | null>(lastDir())
   const [busy, setBusy] = useState(false)
-  const [result, setResult] = useState<{ folder: string; project: string | null; files: string[] } | null>(null)
+  const [result, setResult] = useState<ExportResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [hasSoundcraft, setHasSoundcraft] = useState(false)
+  const [soundcraft, setSoundcraft] = useState(true)
   const sections = song.structure?.sections.length ?? 0
+
+  useEffect(() => {
+    api.integrations().then((i) => setHasSoundcraft(i.soundcraft)).catch(() => undefined)
+  }, [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -52,15 +58,16 @@ export function ExportDialog({ song, onClose }: { song: Song; onClose: () => voi
     setBusy(true)
     setError(null)
     try {
-      setResult(
-        await api.exportSong(song.id, {
-          dest,
-          stems: stems.filter((s) => picked.has(s)),
-          format,
-          split_sections: split,
-          include_original: original
-        })
-      )
+      const r = await api.exportSong(song.id, {
+        dest,
+        stems: stems.filter((s) => picked.has(s)),
+        format,
+        split_sections: split,
+        include_original: original,
+        soundcraft: hasSoundcraft && soundcraft
+      })
+      setResult(r)
+      if (r.soundcraft) window.songbreak.shell.openPath(r.soundcraft) // straight into SoundCraft
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -79,8 +86,13 @@ export function ExportDialog({ song, onClose }: { song: Song; onClose: () => voi
               Exported {result.files.length} file{result.files.length === 1 ? '' : 's'} to <span className="mono">{result.folder}</span>.
               Every stem starts at 0:00, so they line up when dropped into any editor.
             </p>
+            {result.soundcraft && <p className="ok-text">Opening the session in SoundCraft: one coloured track per stem, tempo set, sections marked.</p>}
+            {result.soundcraft_error && <div className="error-box">SoundCraft session not built: {result.soundcraft_error}</div>}
             <div className="btns modal-actions">
               <button onClick={onClose}>Done</button>
+              {result.soundcraft && (
+                <button onClick={() => window.songbreak.shell.openPath(result.soundcraft!)}>Open in SoundCraft</button>
+              )}
               {result.project && (
                 <button onClick={() => window.songbreak.shell.openPath(result.project!)} title="Opens with REAPER if it's installed">
                   Open REAPER project
@@ -132,6 +144,13 @@ export function ExportDialog({ song, onClose }: { song: Song; onClose: () => voi
                 <input type="checkbox" checked={split} disabled={!sections} onChange={(e) => setSplit(e.target.checked)} />
                 Also split every stem by section ({sections} sections, e.g. “03 Chorus 1 / Chorus 1 - vocals”)
               </label>
+              {hasSoundcraft && (
+                <label className="pick">
+                  <input type="checkbox" checked={soundcraft} onChange={(e) => setSoundcraft(e.target.checked)} />
+                  <strong>Open in SoundCraft</strong>: build a session with each stem on its own coloured track, the tempo and
+                  sections, then open it
+                </label>
+              )}
             </div>
             <p className="muted small">
               Also included: <span className="mono">lyrics.lrc</span>, a chord chart, section markers (CSV) and a{' '}

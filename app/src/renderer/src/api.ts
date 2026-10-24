@@ -122,14 +122,22 @@ export interface ExportRequest {
   format: 'wav' | 'flac'
   split_sections: boolean
   include_original: boolean
+  soundcraft: boolean
+}
+
+export interface ExportResult {
+  folder: string
+  project: string | null
+  files: string[]
+  sections: number
+  soundcraft: string | null
+  soundcraft_error: string | null
 }
 
 export const api = {
   exportSong: (id: string, body: ExportRequest) =>
-    req<{ folder: string; project: string | null; files: string[]; sections: number }>(
-      `/api/songs/${encodeURIComponent(id)}/export`,
-      { method: 'POST', body: JSON.stringify(body) }
-    ),
+    req<ExportResult>(`/api/songs/${encodeURIComponent(id)}/export`, { method: 'POST', body: JSON.stringify(body) }),
+  integrations: () => req<{ soundcraft: boolean }>('/api/integrations'),
   chords: (id: string) => req<{ segments: ChordSegment[] }>(`/api/songs/${encodeURIComponent(id)}/chords`),
   practice: (id: string, speed: number) =>
     req<{ stems: Record<string, string>; speed: number }>(`/api/songs/${encodeURIComponent(id)}/practice?speed=${speed}`, {
