@@ -1,0 +1,67 @@
+{
+  "name": "songbreak",
+  "productName": "Songbreak",
+  "version": "0.1.0",
+  "description": "Break a song into its instruments, lyrics, structure and story, locally on your own GPU.",
+  "main": "./out/main/index.js",
+  "author": "SkyTune96",
+  "license": "MIT",
+  "homepage": "https://github.com/SkyTune96/songbreak",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "start": "electron-vite preview",
+    "dist": "electron-vite build && electron-builder --win"
+  },
+  "build": {
+    "appId": "com.skytune96.songbreak",
+    "productName": "Songbreak",
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../songbreak",
+        "to": "python/songbreak",
+        "filter": [
+          "**/*.py"
+        ]
+      },
+      {
+        "from": "../requirements.txt",
+        "to": "python/requirements.txt"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Songbreak"
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0",
+    "electron-vite": "^6.0.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5"
+  }
+}

@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Analysis output (stems are hundreds of MB per song)
+analysis/
+samples/*.wav
+samples/*.mp3
+samples/tts/
+
+# Electron app
+app/node_modules/
+app/out/
+app/dist/
+
+# Misc
+*.log
+.DS_Store
+Thumbs.db
