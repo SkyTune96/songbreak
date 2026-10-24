@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { api, type MashupRequest } from '../api'
+import { api, type ChordSegment, type MashupRequest } from '../api'
+import { ChordLane, chordAt } from './Chords'
 import { Mix } from './Mix'
 import { ORIGINAL, StemPlayer, type TrackState } from '../player'
 import type { Job, Song, SystemInfo } from '../types'
@@ -37,7 +38,12 @@ export function SongView({ songId, system, job, jobs, refreshKey, onReanalyze, o
   const [mode, setMode] = useState<'stems' | 'original'>('stems')
   const [master, setMaster] = useState(1)
   const [menu, setMenu] = useState(false)
+  const [chords, setChords] = useState<ChordSegment[]>([])
+  const [speed, setSpeed] = useState(1)
+  const [preparing, setPreparing] = useState<number | null>(null)
+  const [loopLabel, setLoopLabel] = useState<string | null>(null)
   const player = useRef<StemPlayer | null>(null)
+  const baseUrls = useRef<Record<string, string>>({})
 
   // Load analysis + audio whenever the song (or its analysis, after a re-run) changes.
   useEffect(() => {
@@ -48,6 +54,9 @@ export function SongView({ songId, system, job, jobs, refreshKey, onReanalyze, o
     setTime(0)
     setPlaying(false)
     setMode('stems')
+    setChords([])
+    setSpeed(1)
+    setLoopLabel(null)
     const p = new StemPlayer()
     player.current = p
     p.onEnded = () => setPlaying(false)
@@ -60,6 +69,8 @@ export function SongView({ songId, system, job, jobs, refreshKey, onReanalyze, o
         const urls: Record<string, string> = {}
         for (const [name, rel] of Object.entries(s.stems ?? {})) urls[name] = api.fileUrl(songId, rel)
         if (s.source_file) urls[ORIGINAL] = api.fileUrl(songId, s.source_file)
+        baseUrls.current = urls
+        api.chords(songId).then((c) => alive && setChords(c.segments)).catch(() => undefined)
         if (!Object.keys(s.stems ?? {}).length && s.source_file) setMode('original')
         await p.load(urls, (f) => alive && setLoading(Math.min(f, 0.99)))
         if (!alive) return
@@ -99,6 +110,51 @@ export function SongView({ songId, system, job, jobs, refreshKey, onReanalyze, o
   }, [])
   const seek = useCallback((t: number) => player.current?.seek(t), [])
 
+  // Practice speed: swap in pitch-preserving stretched stems (rendered once per speed, then cached).
+  const changeSpeed = async (s: number): Promise<void> => {
+    const p = player.current
+    if (!p || s === speed) return
+    const pos = p.currentTime
+    const was = p.playing
+    setPreparing(s)
+    try {
+      let urls = baseUrls.current
+      if (s !== 1) {
+        const r = await api.practice(songId, s)
+        urls = Object.fromEntries(Object.entries(r.stems).map(([n, rel]) => [n, api.fileUrl(songId, rel)]))
+      }
+      p.pause()
+      await p.load(urls, undefined, s)
+      if (s !== 1) {
+        p.setMode('stems')
+        setMode('stems')
+      }
+      p.seek(pos)
+      if (was) p.play()
+      setSpeed(s)
+    } catch (e) {
+      alert(`Couldn't prepare ${Math.round(s * 100)}% speed: ${(e as Error).message}`)
+    } finally {
+      setPreparing(null)
+    }
+  }
+
+  const loopSection = useCallback(() => {
+    const p = player.current
+    const st = p && song?.structure
+    if (!p || !st) return
+    if (p.looping) {
+      p.setLoop(null)
+      setLoopLabel(null)
+      return
+    }
+    const sec = st.sections.find((x) => p.currentTime >= x.start && p.currentTime < x.end)
+    if (sec) {
+      p.setLoop([sec.start, sec.end])
+      setLoopLabel(sec.label)
+    }
+  }, [song])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if ((e.target as HTMLElement).closest('input, textarea, select')) return
@@ -107,10 +163,11 @@ export function SongView({ songId, system, job, jobs, refreshKey, onReanalyze, o
         toggle()
       } else if (e.code === 'ArrowRight') seek((player.current?.currentTime ?? 0) + 5)
       else if (e.code === 'ArrowLeft') seek((player.current?.currentTime ?? 0) - 5)
+      else if (e.code === 'KeyL') loopSection()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [toggle, seek])
+  }, [toggle, seek, loopSection])
 
   const updateTrack = (name: string, patch: Partial<TrackState>): void => {
     const p = player.current!
@@ -205,6 +262,9 @@ export function SongView({ songId, system, job, jobs, refreshKey, onReanalyze, o
               {section.label}
             </>
           )}
+          {chordAt(chords, time) && <span className="now-chord" title="Current chord">{chordAt(chords, time)}</span>}
+          {speed !== 1 && <span className="badge">{Math.round(speed * 100)}% speed</span>}
+          {loopLabel && <span className="badge">⟲ {loopLabel}</span>}
         </div>
         {loading < 1 && (
           <div className="loading-audio">
@@ -215,6 +275,7 @@ export function SongView({ songId, system, job, jobs, refreshKey, onReanalyze, o
       </div>
 
       <div className="main-wave">
+        <ChordLane chords={chords} duration={duration} time={time} onSeek={seek} />
         <Waveform peaks={sumPeaks(peaks)} duration={duration} time={time} color="#e8eaf2" height={120} sections={st?.sections} onSeek={seek} />
       </div>
 
@@ -253,9 +314,18 @@ export function SongView({ songId, system, job, jobs, refreshKey, onReanalyze, o
             onMode={(m) => (player.current?.setMode(m), setMode(m))}
             onMaster={(v) => (player.current?.setMaster(v), setMaster(v))}
             onSeek={seek}
+            speed={speed}
+            preparing={preparing}
+            onSpeed={changeSpeed}
+            loop={loopLabel}
+            currentSection={section?.label ?? null}
+            onLoop={loopSection}
+            onClearLoop={loopSection}
           />
         )}
-        {tab === 'lyrics' && <Lyrics lines={song.lyrics?.lines ?? []} sections={st?.sections ?? []} time={time} playing={playing} onSeek={seek} />}
+        {tab === 'lyrics' && (
+          <Lyrics lines={song.lyrics?.lines ?? []} sections={st?.sections ?? []} chords={chords} time={time} playing={playing} onSeek={seek} />
+        )}
         {tab === 'story' && (
           <Story song={song} ollamaRunning={!!system?.ollama.running} busy={busy} onGenerate={() => onReanalyze(song, false)} />
         )}

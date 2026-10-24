@@ -330,6 +330,27 @@ input.rename { flex: 1; min-width: 0; font: inherit; color: var(--text); backgro
 .ctx-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-3); padding: 4px 10px 2px; }
 .ctx-sep { height: 1px; background: var(--line-2); margin: 4px 2px; }
 
+/* chords */
+.chord-lane { position: relative; height: 26px; margin-bottom: 6px; }
+.chord { position: absolute; top: 0; height: 24px; padding: 0 4px; border-radius: 5px; border: 1px solid var(--line); background: var(--bg-2); color: var(--text-2); font: 600 11.5px var(--font); text-align: left; overflow: hidden; white-space: nowrap; }
+.chord span { pointer-events: none; }
+.chord.minor { color: #b9b0ff; }
+.chord.now { background: var(--accent); border-color: var(--accent); color: #fff; }
+.now-chord { font: 700 15px var(--mono); padding: 1px 9px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line-2); color: var(--text); margin-left: 6px; }
+.lyrics-toggle { display: flex; align-items: center; gap: 6px; margin: 0 0 8px 10px; }
+.lyric-line.chorded .lyric-text .w { position: relative; display: inline-block; padding-top: 16px; }
+.lyric-line .lyric-text .w .c { position: absolute; top: 0; left: 0; font: 700 12px var(--mono); color: var(--accent-2) !important; text-shadow: none !important; white-space: nowrap; }
+
+/* practice */
+.practice { display: flex; align-items: center; gap: 8px; }
+.practice .field-label { margin: 0 2px 0 0; }
+.practice .segmented button { padding: 4px 9px; font-size: 12.5px; }
+.loop-on { background: #ffd84d; border-color: #ffd84d; color: #1a1a1a; font-weight: 600; }
+.loop-on:hover:not(:disabled) { background: #ffe27a !important; border-color: #ffe27a !important; }
+
+/* auto-mix */
+.automix-controls { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
 /* story playlists */
 .playlist-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; }
 .modal-back { position: fixed; inset: 0; background: rgba(8,9,12,.7); display: grid; place-items: center; z-index: 80; }

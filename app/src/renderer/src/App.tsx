@@ -111,7 +111,9 @@ export function App() {
         setJobs((js) => ({ ...js, [job.id]: job }))
         if (job.status === 'done') {
           setRefresh((r) => ({ ...r, [job.song_id]: (r[job.song_id] ?? 0) + 1 }))
-          if (job.kind === 'playlist') {
+          if (job.kind === 'automix') {
+            loadLibrary() // the playlist record now carries the mix and its cue list
+          } else if (job.kind === 'playlist') {
             loadLibrary()
             setSelectedPlaylist(job.song_id)
             setView('playlist')
@@ -289,6 +291,8 @@ export function App() {
             <PlaylistView
               key={pl.id}
               playlist={pl}
+              busy={jobList.some((j) => j.kind === 'automix' && j.song_id === pl.id && (j.status === 'queued' || j.status === 'running'))}
+              onAutomix={() => folderAction(() => api.automix(pl.id))}
               onOpenSong={(id) => (setSelected(id), setView('song'))}
               onRename={(name) => name.trim() && name !== pl.name && folderAction(() => api.renamePlaylist(pl.id, name))}
               onDelete={() => {

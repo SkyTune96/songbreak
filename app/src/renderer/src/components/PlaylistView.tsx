@@ -4,9 +4,11 @@ import { beatColor, fmtTime } from '../util'
 
 interface Props {
   playlist: Playlist
+  busy: boolean // an auto-mix render is queued or running
   onOpenSong: (id: string) => void
   onRename: (name: string) => void
   onDelete: () => void
+  onAutomix: () => void
 }
 
 const XF = 6 // crossfade seconds
@@ -46,8 +48,11 @@ function ArcChart({ p, current }: { p: Playlist; current: number }) {
   )
 }
 
-export function PlaylistView({ playlist: p, onOpenSong, onRename, onDelete }: Props) {
+export function PlaylistView({ playlist: p, busy, onOpenSong, onRename, onDelete, onAutomix }: Props) {
+  const [mode, setMode] = useState<'live' | 'mix'>(p.automix ? 'mix' : 'live')
   const decks = useRef<[HTMLAudioElement, HTMLAudioElement]>([new Audio(), new Audio()])
+  const mixAudio = useRef(new Audio())
+  const mix = p.automix
   const active = useRef(0) // which deck is the current track
   const fading = useRef(false)
   const [current, setCurrent] = useState(-1)
@@ -83,8 +88,40 @@ export function PlaylistView({ playlist: p, onOpenSong, onRename, onDelete }: Pr
     [p.id]
   )
 
+  // Rendered auto-mix: one file; the current track comes from the cue list.
+  useEffect(() => {
+    if (mode !== 'mix' || !mix) return
+    const a = mixAudio.current
+    let raf = 0
+    const tick = (): void => {
+      setTime(a.currentTime || 0)
+      setDuration(a.duration || mix.duration)
+      const idx = mix.cues.filter((c) => c.start <= a.currentTime + 0.05).pop()?.index ?? -1
+      if (a.currentTime > 0 || !a.paused) setCurrent(idx)
+      if (a.ended) setPlaying(false)
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [mode, mix])
+
+  useEffect(() => {
+    if (mix) setMode('mix') // a freshly rendered mix is what the user wants to hear
+  }, [mix?.created]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    // Switching mode (or a re-render of the mix) stops whatever was playing.
+    decks.current.forEach((a) => a.pause())
+    mixAudio.current.pause()
+    if (mix) mixAudio.current.src = api.mixUrl(p.id, mix.created)
+    setPlaying(false)
+    setCurrent(-1)
+    setTime(0)
+  }, [mode, mix, p.id])
+
   // Crossfade engine: near the end of the current track, start the next on the other deck and swap volumes.
   useEffect(() => {
+    if (mode !== 'live') return
     let raf = 0
     const tick = (): void => {
       const cur = decks.current[active.current]
@@ -120,14 +157,26 @@ export function PlaylistView({ playlist: p, onOpenSong, onRename, onDelete }: Pr
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, current, nextPlayable])
+  }, [playing, current, nextPlayable, mode])
 
   useEffect(() => {
     const d = decks.current
-    return () => d.forEach((a) => (a.pause(), (a.src = '')))
+    const m = mixAudio.current
+    return () => [...d, m].forEach((a) => (a.pause(), (a.src = '')))
   }, [p.id])
 
   const toggle = (): void => {
+    if (mode === 'mix') {
+      const a = mixAudio.current
+      if (a.paused) {
+        a.play()
+        setPlaying(true)
+      } else {
+        a.pause()
+        setPlaying(false)
+      }
+      return
+    }
     if (current < 0) {
       const first = nextPlayable(0)
       if (first >= 0) start(first)
@@ -144,8 +193,28 @@ export function PlaylistView({ playlist: p, onOpenSong, onRename, onDelete }: Pr
   }
 
   const seek = (t: number): void => {
+    if (mode === 'mix') {
+      mixAudio.current.currentTime = Math.max(0, Math.min(t, duration - 0.5))
+      return
+    }
     if (fading.current) return // mid-crossfade both decks are playing; let it finish
     decks.current[active.current].currentTime = Math.max(0, Math.min(t, duration - 0.5))
+  }
+  // In mix mode, tracks are cue points in one file.
+  const goTrack = (i: number): void => {
+    if (mode === 'mix' && mix) {
+      const cue = mix.cues.find((c) => c.index === i)
+      if (!cue) return
+      seek(cue.start)
+      if (mixAudio.current.paused) toggle()
+    } else start(i)
+  }
+  const nextFade = (): number | null => {
+    if (mode === 'mix' && mix) {
+      const tr = mix.transitions.find((x) => x.at > time + 1)
+      return tr ? tr.at - 4 : null
+    }
+    return nextPlayable(current + 1) >= 0 && duration ? duration - XF - 4 : null
   }
   const prevPlayable = (from: number): number => {
     for (let i = from; i >= 0; i--) if (playable[i]) return i
@@ -200,14 +269,32 @@ export function PlaylistView({ playlist: p, onOpenSong, onRename, onDelete }: Pr
               <span className="muted"> · {fmtTime(time)}</span>
             </>
           ) : (
-            <span className="muted">Plays start to finish with {XF}s crossfades</span>
+            <span className="muted">
+              {mode === 'mix' ? 'Rendered DJ mix: beat-matched blends and breakdowns' : `Plays start to finish with ${XF}s crossfades`}
+            </span>
+          )}
+        </div>
+        <div className="automix-controls">
+          {mix && (
+            <div className="segmented" title="Live crossfades, or the rendered beat-matched mix">
+              <button className={mode === 'live' ? 'on' : ''} onClick={() => setMode('live')}>Crossfade</button>
+              <button className={mode === 'mix' ? 'on' : ''} onClick={() => setMode('mix')}>Auto-mix</button>
+            </div>
+          )}
+          <button disabled={busy} onClick={onAutomix} title="Render the playlist as one continuous DJ mix (FLAC)">
+            {busy ? 'Mixing…' : mix ? 'Re-render mix' : '⚡ Auto-mix'}
+          </button>
+          {mix && (
+            <button onClick={() => window.songbreak.shell.showItem(mix.file)} title={mix.file}>
+              Export ({Math.round(mix.duration / 60)} min FLAC)
+            </button>
           )}
         </div>
       </div>
 
       {current >= 0 && (
         <div className="seekbar">
-          <button className="link" title="Previous track" disabled={prevPlayable(current - 1) < 0} onClick={() => start(prevPlayable(current - 1))}>⏮</button>
+          <button className="link" title="Previous track" disabled={prevPlayable(current - 1) < 0} onClick={() => goTrack(prevPlayable(current - 1))}>⏮</button>
           <span className="mono">{fmtTime(time)}</span>
           <input
             type="range"
@@ -219,11 +306,14 @@ export function PlaylistView({ playlist: p, onOpenSong, onRename, onDelete }: Pr
             title="Drag to jump within the current track"
           />
           <span className="mono">{fmtTime(duration)}</span>
-          <button className="link" title="Next track" disabled={nextPlayable(current + 1) < 0} onClick={() => start(nextPlayable(current + 1))}>⏭</button>
+          <button className="link" title="Next track" disabled={nextPlayable(current + 1) < 0} onClick={() => goTrack(nextPlayable(current + 1))}>⏭</button>
           <button
-            title={`Jump to ${XF + 4}s before the end to hear the crossfade into the next track`}
-            disabled={nextPlayable(current + 1) < 0 || !duration}
-            onClick={() => seek(duration - XF - 4)}
+            title="Jump to just before the next transition"
+            disabled={nextFade() === null}
+            onClick={() => {
+              const t = nextFade()
+              if (t !== null) seek(t)
+            }}
           >
             Skip to fade
           </button>
@@ -241,7 +331,7 @@ export function PlaylistView({ playlist: p, onOpenSong, onRename, onDelete }: Pr
       <div className="tracklist">
         {p.songs.map((s, i) => (
           <div key={s.id}>
-            <div className={`track ${i === current ? 'now' : ''} ${playable[i] ? '' : 'missing'}`} onClick={() => playable[i] && start(i)}>
+            <div className={`track ${i === current ? 'now' : ''} ${playable[i] ? '' : 'missing'}`} onClick={() => playable[i] && goTrack(i)}>
               <span className="track-n">{i + 1}</span>
               <div className="track-main">
                 <div className="track-head">
@@ -256,7 +346,15 @@ export function PlaylistView({ playlist: p, onOpenSong, onRename, onDelete }: Pr
               </div>
               <button className="link" onClick={(e) => (e.stopPropagation(), onOpenSong(s.id))} title="Open song">Open ›</button>
             </div>
-            {s.next && (
+            {mode === 'mix' && mix?.transitions[i] && (
+              <div className="transition good">
+                ↓ {mix.transitions[i].kind === 'blend'
+                  ? `beat-matched blend${mix.transitions[i].stretch !== 1 ? ` (intro stretched ×${mix.transitions[i].stretch})` : ''}`
+                  : 'breakdown: drums drop, next melody fades in, drums land on the downbeat'}
+                {' '}at {fmtTime(mix.transitions[i].at)}
+              </div>
+            )}
+            {mode === 'live' && s.next && (
               <div className={`transition ${s.next.score > 0.6 ? 'good' : s.next.score > 0.35 ? '' : 'rough'}`}>
                 ↓ {Math.round(s.next.tempo[0])}→{Math.round(s.next.tempo[1])} BPM · {s.next.camelot[0]}→{s.next.camelot[1]} ·{' '}
                 {s.next.score > 0.6 ? 'smooth transition' : s.next.score > 0.35 ? 'okay transition' : 'big change in tempo or key'}

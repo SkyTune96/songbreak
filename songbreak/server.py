@@ -224,7 +224,16 @@ class Worker(threading.Thread):
                 job["log"] = (job["log"] + [line])[-_LOG_LINES:]
 
             try:
-                if job["kind"] == "playlist":
+                if job["kind"] == "automix":
+                    from .automix import render
+                    from .playlists import PlaylistStore
+                    store = PlaylistStore(self.library.root)
+                    pl = next(p for p in store.load() if p["id"] == job["song_id"])
+                    mix = render(self.library.root, pl, self.library.root / "_mixes" / pl["id"],
+                                 progress=lambda f, msg: progress("automix", f, msg))
+                    pl["automix"] = mix
+                    store.put(pl)
+                elif job["kind"] == "playlist":
                     from .hardware import detect
                     from .playlists import PlaylistStore, build
                     o = job["options"]
@@ -315,6 +324,54 @@ def create_app(library_root: Path) -> FastAPI:
         data.update(id=song_id, dir=str(d), source_file=next((p.name for p in d.glob("source.*")), None))
         return data
 
+    practice_lock = threading.Lock()
+
+    @app.post("/api/songs/{song_id}/practice")
+    def post_practice(song_id: str, speed: float):
+        """Pitch-preserving slowed (or sped-up) stems for practice, cached per speed."""
+        if not 0.4 <= speed <= 1.5:
+            raise HTTPException(400, "speed must be between 0.4 and 1.5")
+        d = library.dir(song_id)
+        a = json.loads((d / "analysis.json").read_text(encoding="utf-8"))
+        pct = int(round(speed * 100))
+        out = d / "practice" / str(pct)
+        stems = {}
+        with practice_lock:  # one render at a time; a second request for the same speed hits the cache
+            from .mix import stretch_shift
+            from . import audio_io as aio
+            for name, rel in (a.get("stems") or {}).items():
+                dst = out / f"{name}.wav"
+                if not dst.exists():
+                    audio, sr = aio.read(d / rel)
+                    y, _ = stretch_shift(audio, sr, speed, 0)
+                    out.mkdir(parents=True, exist_ok=True)
+                    aio.save(dst, y, sr)
+                stems[name] = f"practice/{pct}/{name}.wav"
+        return {"stems": stems, "speed": pct / 100}
+
+    @app.post("/api/playlists/{pid}/automix")
+    def post_automix(pid: str):
+        pl = next((p for p in playlist_store.load() if p["id"] == pid), None)
+        if not pl:
+            raise HTTPException(404, "no such playlist")
+        return worker._enqueue({"kind": "automix", "song_id": pid, "title": f"Auto-mix: {pl['name']}",
+                                "source": "", "options": {}})
+
+    @app.get("/api/playlists/{pid}/mix")
+    def get_mix(pid: str):
+        f = library.root / "_mixes" / pid / "mix.flac"
+        if not f.exists():
+            raise HTTPException(404, "not mixed yet")
+        return FileResponse(f, media_type="audio/flac")
+
+    @app.get("/api/songs/{song_id}/chords")
+    def get_chords(song_id: str):
+        d = library.dir(song_id)
+        if not (d / "analysis.json").exists():
+            raise HTTPException(404, "not analysed")
+        from .chords import get
+        return get(d)
+
     @app.get("/api/songs/{song_id}/peaks")
     def get_peaks(song_id: str):
         d = library.dir(song_id)
@@ -377,6 +434,7 @@ def create_app(library_root: Path) -> FastAPI:
     @app.delete("/api/playlists/{pid}")
     def delete_playlist(pid: str):
         playlist_store.delete(pid)
+        shutil.rmtree(library.root / "_mixes" / pid, ignore_errors=True)
         hub.publish({"type": "library"})
         return {"ok": True}
 

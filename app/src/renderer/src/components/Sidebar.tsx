@@ -42,7 +42,8 @@ const STAGE_NAMES: Record<string, string> = {
   story: 'Writing the story',
   peaks: 'Finishing',
   mashup: 'Rendering mashup',
-  playlist: 'Building story playlist'
+  playlist: 'Building story playlist',
+  automix: 'Rendering the mix'
 }
 const DRAG_TYPE = 'application/x-songbreak-song'
 const COLLAPSE_KEY = 'songbreak.collapsedFolders'

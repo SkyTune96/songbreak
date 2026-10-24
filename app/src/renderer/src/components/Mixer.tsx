@@ -17,7 +17,16 @@ interface Props {
   onMode: (m: 'stems' | 'original') => void
   onMaster: (v: number) => void
   onSeek: (t: number) => void
+  speed: number
+  preparing: number | null // speed being rendered
+  onSpeed: (s: number) => void
+  loop: string | null // label of the looped section
+  currentSection: string | null
+  onLoop: () => void
+  onClearLoop: () => void
 }
+
+const SPEEDS = [0.5, 0.75, 0.9, 1]
 
 export function Mixer(p: Props) {
   const anySolo = p.stems.some((s) => p.tracks[s]?.solo)
@@ -30,16 +39,33 @@ export function Mixer(p: Props) {
           </button>
           <button
             className={p.mode === 'original' ? 'on' : ''}
-            disabled={!p.hasOriginal}
+            disabled={!p.hasOriginal || p.speed !== 1}
             onClick={() => p.onMode('original')}
             title="A/B against the original recording"
           >
             Original
           </button>
         </div>
+        <div className="practice">
+          <span className="field-label">Practice</span>
+          <div className="segmented" title="Slow down without changing pitch">
+            {SPEEDS.map((s) => (
+              <button key={s} className={p.speed === s ? 'on' : ''} disabled={p.preparing !== null} onClick={() => p.onSpeed(s)}>
+                {p.preparing === s ? '…' : `${Math.round(s * 100)}%`}
+              </button>
+            ))}
+          </div>
+          {p.loop ? (
+            <button className="loop-on" onClick={p.onClearLoop} title="Stop looping">⟲ Looping {p.loop} ✕</button>
+          ) : (
+            <button disabled={!p.currentSection} onClick={p.onLoop} title="Loop the section that's playing; mute your instrument and play along">
+              ⟲ Loop {p.currentSection ?? 'section'}
+            </button>
+          )}
+        </div>
         <div className="mixer-hint">
-          Solo a stem to hear it alone · <kbd>Space</kbd> play/pause · <kbd>←</kbd>
-          <kbd>→</kbd> seek
+          <kbd>Space</kbd> play/pause · <kbd>←</kbd>
+          <kbd>→</kbd> seek · <kbd>L</kbd> loop
         </div>
         <label className="master">
           Master

@@ -101,9 +101,28 @@ export interface Playlist {
   songs: PlaylistSong[]
   written_by: string | null
   created: string
+  automix?: {
+    file: string
+    duration: number
+    cues: { index: number; id: string; title: string; start: number }[]
+    transitions: { from: string; to: string; kind: 'blend' | 'break'; stretch: number; at: number; tempo: [number, number] }[]
+    created: string
+  }
+}
+
+export interface ChordSegment {
+  start: number
+  end: number
+  chord: string
 }
 
 export const api = {
+  chords: (id: string) => req<{ segments: ChordSegment[] }>(`/api/songs/${encodeURIComponent(id)}/chords`),
+  practice: (id: string, speed: number) =>
+    req<{ stems: Record<string, string>; speed: number }>(`/api/songs/${encodeURIComponent(id)}/practice?speed=${speed}`, {
+      method: 'POST'
+    }),
+  automix: (id: string) => req<Job>(`/api/playlists/${id}/automix`, { method: 'POST' }),
   arcs: () => req<Arc[]>('/api/arcs'),
   playlists: () => req<Playlist[]>('/api/playlists'),
   createPlaylist: (songs: string[], arc: string, llm: LlmOpts = {}) =>
@@ -142,5 +161,6 @@ export const api = {
   cancel: (id: string) => req<Job>(`/api/jobs/${id}/cancel`, { method: 'POST' }),
   fileUrl: (id: string, rel: string) =>
     `${base}/api/songs/${encodeURIComponent(id)}/file/${rel.split(/[\\/]/).map(encodeURIComponent).join('/')}`,
+  mixUrl: (playlistId: string, version: string) => `${base}/api/playlists/${playlistId}/mix?v=${encodeURIComponent(version)}`,
   events: () => new EventSource(`${base}/api/events`)
 }

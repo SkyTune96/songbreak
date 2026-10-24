@@ -1,18 +1,34 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ChordSegment } from '../api'
 import type { Line, Section } from '../types'
 import { fmtTime, letterColor } from '../util'
+import { chordAt } from './Chords'
 
 interface Props {
   lines: Line[]
   sections: Section[]
+  chords: ChordSegment[]
   time: number
   playing: boolean
   onSeek: (t: number) => void
 }
 
+/** Chord shown above a word when it differs from the chord over the previous word (lead-sheet style). */
+function chordMarks(line: Line, chords: ChordSegment[]): (string | null)[] {
+  let prev: string | null = null
+  return line.words.map((w, i) => {
+    const c = chordAt(chords, w.start + 0.05)
+    const show = c && (i === 0 || c !== prev) ? c : null
+    prev = c
+    return show
+  })
+}
+
 /** Karaoke view: the current line and word light up, and the list follows playback. */
-export function Lyrics({ lines, sections, time, playing, onSeek }: Props) {
+export function Lyrics({ lines, sections, chords, time, playing, onSeek }: Props) {
   const box = useRef<HTMLDivElement>(null)
+  const [showChords, setShowChords] = useState(true)
+  const withChords = showChords && chords.length > 0
   const lastUserScroll = useRef(0)
 
   const grouped = useMemo(() => {
@@ -41,6 +57,11 @@ export function Lyrics({ lines, sections, time, playing, onSeek }: Props) {
 
   return (
     <div className="lyrics" ref={box} onWheel={() => (lastUserScroll.current = Date.now())}>
+      {chords.length > 0 && (
+        <label className="lyrics-toggle muted small">
+          <input type="checkbox" checked={showChords} onChange={(e) => setShowChords(e.target.checked)} /> Show chords
+        </label>
+      )}
       {grouped.map((g, gi) => (
         <div key={gi} className="lyric-group">
           {g.section && (
@@ -50,13 +71,15 @@ export function Lyrics({ lines, sections, time, playing, onSeek }: Props) {
           )}
           {g.lines.map(({ line, index }) => {
             const state = index === current ? 'now' : index < current ? 'past' : ''
+            const marks = withChords ? chordMarks(line, chords) : null
             return (
-              <div key={index} data-line={index} className={`lyric-line ${state}`} onClick={() => onSeek(line.start)}>
+              <div key={index} data-line={index} className={`lyric-line ${state} ${withChords ? 'chorded' : ''}`} onClick={() => onSeek(line.start)}>
                 <span className="lyric-time">{fmtTime(line.start)}</span>
                 <span className="lyric-text">
-                  {index === current
+                  {index === current || marks
                     ? line.words.map((w, wi) => (
-                        <span key={wi} className={w.start <= time ? 'sung' : ''}>
+                        <span key={wi} className={`w ${index === current && w.start <= time ? 'sung' : ''}`}>
+                          {marks?.[wi] && <span className="c">{marks[wi]}</span>}
                           {w.word}{' '}
                         </span>
                       ))

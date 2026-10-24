@@ -43,6 +43,16 @@ narrator, conflict, arc, themes. Nothing is uploaded anywhere.
   story, an optimiser orders the songs to follow the arc while favouring smooth tempo/key
   transitions, and the LLM writes the playlist's title, synopsis and a chapter line per song.
   Plays start to finish with crossfades, with a seek bar and "skip to fade" to preview transitions.
+- **Auto-mix.** Render a story playlist as one continuous DJ mix: beat-matched blends (the
+  incoming intro is time-stretched onto the outgoing beat grid, with a bass swap on the downbeat)
+  where tempos are within 8%, and breakdown transitions where they aren't. Exported as FLAC with
+  a cue list; play it in the app with track markers.
+- **Chords.** Chord progression detected from the backing stems (triad templates, bass-root
+  voting, Viterbi smoothing), shown as a lane over the waveform, as the current chord, and above
+  the lyrics, lead-sheet style.
+- **Practice mode.** Slow down to 50/75/90% without changing pitch (Signalsmith-stretched stems,
+  cached per speed), loop the current section sample-accurately (press L), and mute or solo any
+  instrument to play along.
 - **Folders.** ✦ Organize sorts your library into folders by shared story themes, named by the
   local LLM (or from the themes themselves without Ollama). Drag songs between folders, rename
   with a double-click, or right-click a song to move it, start a new AI-named folder, or delete it.

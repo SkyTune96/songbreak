@@ -153,7 +153,7 @@ export type JobStatus = 'queued' | 'running' | 'done' | 'error' | 'cancelled'
 
 export interface Job {
   id: string
-  kind: 'analyze' | 'mashup' | 'playlist'
+  kind: 'analyze' | 'mashup' | 'playlist' | 'automix'
   song_id: string
   title: string
   source: string

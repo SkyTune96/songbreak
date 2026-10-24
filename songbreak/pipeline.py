@@ -191,7 +191,13 @@ def run(src: Path, out: Path, opts: Options, progress: Progress | None = None,
         if story.get("note"):
             log(f"[songbreak] {story['note']}")
 
-    stage("peaks", lambda: write_peaks(out, mix[:, ::2]), "Drawing waveforms")
+    def finish():
+        write_peaks(out, mix[:, ::2])
+        if structure:
+            from .chords import detect
+            (out / "chords.json").write_text(json.dumps(detect(out, result)), encoding="utf-8")
+
+    stage("peaks", finish, "Drawing waveforms and chords")
     (out / "analysis.json").write_text(json.dumps(result, indent=2, default=_jsonable), encoding="utf-8")
     (out / "report.md").write_text(report.markdown(result), encoding="utf-8")
     log(f"[songbreak] wrote {out / 'report.md'}")
