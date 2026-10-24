@@ -304,6 +304,32 @@ ul.plain { list-style: none; padding: 0; margin: 6px 0 0; color: var(--text-2); 
 .energy span { display: block; height: 100%; border-radius: 3px; }
 .mini-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; }
 
+/* folders */
+.library-head { display: flex; align-items: center; justify-content: space-between; }
+.lib-actions { display: flex; gap: 2px; text-transform: none; letter-spacing: 0; }
+.lib-actions .link { font-size: 12px; color: var(--text-2); }
+.folder { border-radius: 8px; margin-bottom: 2px; border: 1px dashed transparent; }
+.folder.drop { border-color: var(--accent); background: #7c6cff12; }
+.folder-head { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; color: var(--text-2); }
+.folder-head:hover { background: var(--panel); color: var(--text); }
+.folder-head.plain { cursor: default; }
+.folder-head.plain:hover { background: none; color: var(--text-2); }
+.caret { font-size: 10px; transition: transform .12s; width: 10px; color: var(--text-3); }
+.caret.open { transform: rotate(90deg); }
+.folder-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-count { font-size: 11px; color: var(--text-3); }
+.folder-actions { display: none; }
+.folder-head:hover .folder-actions { display: flex; }
+.folder-actions .link { font-size: 12px; padding: 0 3px; }
+.folder-songs { padding-left: 12px; display: flex; flex-direction: column; gap: 2px; }
+input.rename { flex: 1; min-width: 0; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--accent); border-radius: 5px; padding: 1px 6px; outline: none; }
+.ctx { position: fixed; z-index: 70; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 10px; padding: 5px; min-width: 210px; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+.ctx button { display: block; width: 100%; text-align: left; background: none; border: none; padding: 6px 10px; border-radius: 6px; }
+.ctx button:hover { background: #2a2f3f !important; }
+.ctx button.danger { color: var(--err); }
+.ctx-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-3); padding: 4px 10px 2px; }
+.ctx-sep { height: 1px; background: var(--line-2); margin: 4px 2px; }
+
 /* mix / mashups */
 .tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--accent-2); border: 1px solid #7c6cff66; border-radius: 4px; padding: 0 4px; margin-right: 6px; vertical-align: 1px; }
 .mix { display: flex; flex-direction: column; gap: 10px; max-width: 1100px; }

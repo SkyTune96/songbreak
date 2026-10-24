@@ -38,6 +38,9 @@ narrator, conflict, arc, themes. Nothing is uploaded anywhere.
   [Signalsmith Stretch](https://github.com/Signalsmith-Audio/signalsmith-stretch), installed with
   Songbreak; if [Rubber Band](https://breakfastquay.com/rubberband/) (GPL) is on your PATH it's used
   instead. `scripts/compare_engines.py` measures them against each other on your own songs.
+- **Folders.** ✦ Organize sorts your library into folders by shared story themes, named by the
+  local LLM (or from the themes themselves without Ollama). Drag songs between folders, rename
+  with a double-click, or right-click a song to move it, start a new AI-named folder, or delete it.
 - **Sized to your hardware.** Detects your GPU and picks model sizes that fit. Stages run one at a
   time and hand VRAM back in between, so a 16 GB card runs the largest models without spilling.
 

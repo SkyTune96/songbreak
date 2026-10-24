@@ -46,6 +46,22 @@ class MashupIn(BaseModel):
     song_id: str | None = None  # set to re-render an existing mashup in place
 
 
+class FolderIn(BaseModel):
+    name: str | None = None  # None = suggest one from the songs' analysis
+    songs: list[str] = []
+    llm_model: str | None = None
+    ollama_host: str = "http://localhost:11434"
+
+
+class AssignIn(BaseModel):
+    folder_id: str | None
+
+
+class AutoIn(BaseModel):
+    llm_model: str | None = None
+    ollama_host: str = "http://localhost:11434"
+
+
 class Hub:
     """Fans events out to every connected SSE client; safe to call from the worker thread."""
 
@@ -286,8 +302,87 @@ def create_app(library_root: Path) -> FastAPI:
             raise HTTPException(409, "song is being analysed")
         if d.exists():
             shutil.rmtree(d)
+        folders.forget(song_id)
         hub.publish({"type": "library"})
         return {"ok": True}
+
+    # ---------- folders ----------
+    from .folders import FolderStore, auto_groups, suggest_name
+    folders = FolderStore(library.root)
+
+    def analyses(ids: list[str]) -> list[dict]:
+        out = []
+        for sid in ids:
+            a = library.dir(sid) / "analysis.json"
+            if a.exists():
+                out.append(json.loads(a.read_text(encoding="utf-8")))
+        return out
+
+    def llm_for(model: str | None, host: str) -> str | None:
+        """The model to name folders with, or None if Ollama isn't up / the model isn't pulled."""
+        model = model or (system.get("profile") or {}).get("llm_model")
+        try:
+            names = [m["name"] for m in requests.get(f"{host}/api/tags", timeout=2).json().get("models", [])]
+        except requests.RequestException:
+            return None
+        return model if any(n == model or n.split(":")[0] == model for n in names) else None
+
+    @app.get("/api/folders")
+    def get_folders():
+        return folders.load()
+
+    @app.post("/api/folders")
+    def post_folder(body: FolderIn):
+        name = body.name or suggest_name(analyses(body.songs), llm_for(body.llm_model, body.ollama_host),
+                                         body.ollama_host)["name"]
+        f = folders.create(name, body.songs)
+        hub.publish({"type": "library"})
+        return f
+
+    @app.post("/api/folders/suggest")
+    def post_suggest(body: FolderIn):
+        return suggest_name(analyses(body.songs), llm_for(body.llm_model, body.ollama_host), body.ollama_host)
+
+    @app.patch("/api/folders/{folder_id}")
+    def patch_folder(folder_id: str, body: FolderIn):
+        try:
+            f = folders.rename(folder_id, body.name or "")
+        except KeyError:
+            raise HTTPException(404, "no such folder")
+        hub.publish({"type": "library"})
+        return f
+
+    @app.delete("/api/folders/{folder_id}")
+    def delete_folder(folder_id: str):
+        folders.delete(folder_id)
+        hub.publish({"type": "library"})
+        return {"ok": True}
+
+    @app.put("/api/songs/{song_id}/folder")
+    def put_song_folder(song_id: str, body: AssignIn):
+        library.dir(song_id)
+        try:
+            folders.assign(song_id, body.folder_id)
+        except KeyError:
+            raise HTTPException(404, "no such folder")
+        hub.publish({"type": "library"})
+        return {"ok": True}
+
+    @app.post("/api/folders/auto")
+    def post_auto(body: AutoIn):
+        """File every unfiled song into folders named from their analysis."""
+        assigned = folders.load()["assignments"]
+        unfiled = [s["id"] for s in library.list() if s["id"] not in assigned]
+        data = {sid: a for sid, a in zip(unfiled, analyses(unfiled))}
+        model = llm_for(body.llm_model, body.ollama_host)
+        created = []
+        taken = [f["name"] for f in folders.load()["folders"]]
+        for group in auto_groups(data):
+            name = suggest_name([data[s] for s in group], model, body.ollama_host, avoid=taken)["name"]
+            taken.append(name)
+            created.append({**folders.create(name, group), "songs": group})
+        hub.publish({"type": "library"})
+        return {"created": created, "named_by": "llm" if model else "themes"}
 
     @app.post("/api/jobs")
     def post_job(body: JobIn):

@@ -51,7 +51,38 @@ export interface MashupRequest {
   song_id?: string
 }
 
+export interface Folder {
+  id: string
+  name: string
+}
+
+export interface FolderData {
+  folders: Folder[]
+  assignments: Record<string, string>
+}
+
+export interface LlmOpts {
+  llm_model?: string | null
+  ollama_host?: string
+}
+
 export const api = {
+  folders: () => req<FolderData>('/api/folders'),
+  createFolder: (name: string | null, songs: string[], llm: LlmOpts = {}) =>
+    req<Folder>('/api/folders', { method: 'POST', body: JSON.stringify({ name, songs, ...llm }) }),
+  renameFolder: (id: string, name: string) =>
+    req<Folder>(`/api/folders/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  deleteFolder: (id: string) => req<{ ok: boolean }>(`/api/folders/${id}`, { method: 'DELETE' }),
+  moveSong: (songId: string, folderId: string | null) =>
+    req<{ ok: boolean }>(`/api/songs/${encodeURIComponent(songId)}/folder`, {
+      method: 'PUT',
+      body: JSON.stringify({ folder_id: folderId })
+    }),
+  autoOrganize: (llm: LlmOpts = {}) =>
+    req<{ created: (Folder & { songs: string[] })[]; named_by: string }>('/api/folders/auto', {
+      method: 'POST',
+      body: JSON.stringify(llm)
+    }),
   matches: (id: string) => req<Match[]>(`/api/songs/${encodeURIComponent(id)}/matches`),
   mashup: (body: MashupRequest) => req<Job>('/api/mashups', { method: 'POST', body: JSON.stringify(body) }),
   system: (ollamaHost?: string) =>

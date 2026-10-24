@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, setPort, type JobOptions, type MashupRequest } from './api'
+import { api, setPort, type FolderData, type JobOptions, type LlmOpts, type MashupRequest } from './api'
 import { Home } from './components/Home'
 import { Settings } from './components/Settings'
 import { Setup } from './components/Setup'
@@ -20,6 +20,9 @@ export function App() {
   const [refresh, setRefresh] = useState<Record<string, number>>({})
   const [dragging, setDragging] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [folders, setFolders] = useState<FolderData>({ folders: [], assignments: {} })
+  const [renameId, setRenameId] = useState<string | null>(null)
+  const [organizing, setOrganizing] = useState(false)
   const selectedRef = useRef(selected)
   selectedRef.current = selected
   const ready = backend.state === 'ready'
@@ -41,7 +44,45 @@ export function App() {
     setTimeout(() => setToast((t) => (t === msg ? null : t)), 5000)
   }, [])
 
-  const loadLibrary = useCallback(() => api.library().then(setSongs).catch(() => undefined), [])
+  const loadLibrary = useCallback(() => {
+    api.folders().then(setFolders).catch(() => undefined)
+    return api.library().then(setSongs).catch(() => undefined)
+  }, [])
+
+  const llmOpts = async (): Promise<LlmOpts> => {
+    const s: S = await window.songbreak.settings.get()
+    return { llm_model: s.llmModel, ollama_host: s.ollamaHost }
+  }
+
+  const folderAction = async (fn: () => Promise<unknown>): Promise<void> => {
+    try {
+      await fn()
+    } catch (e) {
+      notify((e as Error).message)
+    }
+    loadLibrary()
+  }
+
+  const newFolder = (songIds: string[]): Promise<void> =>
+    folderAction(async () => {
+      // With songs, the name comes from their analysis (LLM if available); empty folders start editable.
+      const f = await api.createFolder(songIds.length ? null : 'New folder', songIds, await llmOpts())
+      if (!songIds.length) setRenameId(f.id)
+      else notify(`Created “${f.name}”`)
+    })
+
+  const organize = async (): Promise<void> => {
+    setOrganizing(true)
+    await folderAction(async () => {
+      const r = await api.autoOrganize(await llmOpts())
+      notify(
+        r.created.length
+          ? `Created ${r.created.map((f) => `“${f.name}”`).join(', ')}${r.named_by === 'llm' ? '' : ' (named from themes; start Ollama for AI names)'}`
+          : 'Nothing to organize: no songs share themes yet'
+      )
+    })
+    setOrganizing(false)
+  }
   const loadSystem = useCallback(async () => {
     const s: S = await window.songbreak.settings.get()
     return api.system(s.ollamaHost).then(setSystem).catch(() => undefined)
@@ -125,12 +166,16 @@ export function App() {
     submit([song.source], { force: full }, song.id)
   }
 
-  const remove = async (song: Song): Promise<void> => {
-    if (!confirm(`Delete “${song.title}”? Its stems and analysis will be removed (the original file is kept).`)) return
+  const remove = async (song: { id: string; title: string; kind?: string }): Promise<void> => {
+    const what = song.kind === 'mashup' ? 'mashup' : 'song'
+    const kept = song.kind === 'mashup' ? 'the songs it was made from are kept' : 'your original audio file is kept'
+    if (!confirm(`Delete the ${what} “${song.title}”? Its stems and analysis will be removed (${kept}).`)) return
     try {
       await api.deleteSong(song.id)
-      setSelected(null)
-      setView('home')
+      if (selectedRef.current === song.id) {
+        setSelected(null)
+        setView('home')
+      }
       loadLibrary()
     } catch (e) {
       notify((e as Error).message)
@@ -190,6 +235,20 @@ export function App() {
     <div className="app">
       <Sidebar
         songs={songs}
+        folders={folders}
+        organizing={organizing}
+        renameId={renameId}
+        onNewFolder={newFolder}
+        onStartRename={setRenameId}
+        onRenameFolder={(id, name) => folderAction(() => api.renameFolder(id, name))}
+        onRenameDone={() => setRenameId(null)}
+        onDeleteFolder={(id, name) => {
+          if (confirm(`Delete the folder “${name}”? Its songs move to Unfiled; nothing is deleted.`))
+            folderAction(() => api.deleteFolder(id))
+        }}
+        onMove={(songId, folderId) => folderAction(() => api.moveSong(songId, folderId))}
+        onDeleteSong={remove}
+        onOrganize={organize}
         jobs={jobList}
         selected={selected}
         view={view}
