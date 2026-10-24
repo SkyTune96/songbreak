@@ -116,7 +116,20 @@ export interface ChordSegment {
   chord: string
 }
 
+export interface ExportRequest {
+  dest: string
+  stems: string[]
+  format: 'wav' | 'flac'
+  split_sections: boolean
+  include_original: boolean
+}
+
 export const api = {
+  exportSong: (id: string, body: ExportRequest) =>
+    req<{ folder: string; project: string | null; files: string[]; sections: number }>(
+      `/api/songs/${encodeURIComponent(id)}/export`,
+      { method: 'POST', body: JSON.stringify(body) }
+    ),
   chords: (id: string) => req<{ segments: ChordSegment[] }>(`/api/songs/${encodeURIComponent(id)}/chords`),
   practice: (id: string, speed: number) =>
     req<{ stems: Record<string, string>; speed: number }>(`/api/songs/${encodeURIComponent(id)}/practice?speed=${speed}`, {

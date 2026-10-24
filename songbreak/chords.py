@@ -55,13 +55,16 @@ def detect(song_dir: Path, analysis: dict) -> dict:
                                              n_octaves=3) if bass is not None else None
     rms = librosa.feature.rms(y=harmonic, hop_length=HOP)[0]
 
-    # Half-beat resolution catches chords that change mid-bar without fragmenting long ones.
+    # One decision per beat. Fast tempos are usually double-time readings, where real chords last
+    # far longer than a beat, so the grid step never drops below ~0.6 s (one beat at 100 BPM).
     beats = np.array((analysis.get("structure") or {}).get("beats") or [])
     if len(beats) > 4:
-        step = np.median(np.diff(beats))
-        grid = np.concatenate([np.arange(beats[0], 0, -step / 2)[::-1][:-1], np.arange(beats[0], duration, step / 2)])
+        step = float(np.median(np.diff(beats)))
+        step *= int(np.ceil(0.55 / step))
+        grid = np.concatenate([np.arange(beats[0], 0, -step)[::-1][:-1], np.arange(beats[0], duration, step)])
     else:
-        grid = np.arange(0, duration, 0.25)
+        step = 0.6
+        grid = np.arange(0, duration, step)
     frames = librosa.util.fix_frames(librosa.time_to_frames(grid, sr=SR, hop_length=HOP), x_min=0, x_max=chroma.shape[1])
     times = librosa.frames_to_time(frames, sr=SR, hop_length=HOP)
     C = librosa.util.sync(chroma, frames, aggregate=np.median)
@@ -79,7 +82,7 @@ def detect(song_dir: Path, analysis: dict) -> dict:
 
     probs = np.exp(8 * scores)
     probs /= probs.sum(axis=0, keepdims=True)
-    path = librosa.sequence.viterbi_discriminative(probs, librosa.sequence.transition_loop(25, 0.9))
+    path = librosa.sequence.viterbi_discriminative(probs, librosa.sequence.transition_loop(25, 0.94))
 
     segments = []
     for i, s in enumerate(path):
@@ -88,8 +91,8 @@ def detect(song_dir: Path, analysis: dict) -> dict:
             segments[-1]["end"] = round(end, 3)
         else:
             segments.append({"start": round(start, 3), "end": round(end, 3), "chord": LABELS[s]})
-    # Fold blips shorter than half a beat into their neighbour.
-    min_len = (np.median(np.diff(beats)) / 2 if len(beats) > 4 else 0.25) * 0.99
+    # Fold single-step blips into their neighbour.
+    min_len = step * 1.01
     merged = []
     for seg in segments:
         if merged and (seg["end"] - seg["start"] < min_len or seg["chord"] == merged[-1]["chord"]):

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, type ChordSegment, type MashupRequest } from '../api'
 import { ChordLane, chordAt } from './Chords'
+import { ExportDialog } from './ExportDialog'
 import { Mix } from './Mix'
 import { ORIGINAL, StemPlayer, type TrackState } from '../player'
 import type { Job, Song, SystemInfo } from '../types'
@@ -42,6 +43,7 @@ export function SongView({ songId, system, job, jobs, refreshKey, onReanalyze, o
   const [speed, setSpeed] = useState(1)
   const [preparing, setPreparing] = useState<number | null>(null)
   const [loopLabel, setLoopLabel] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
   const player = useRef<StemPlayer | null>(null)
   const baseUrls = useRef<Record<string, string>>({})
 
@@ -214,6 +216,7 @@ export function SongView({ songId, system, job, jobs, refreshKey, onReanalyze, o
               {job!.status === 'queued' ? 'Queued' : `${job!.stage ?? 'Working'} ${Math.round(job!.progress * 100)}%`}
             </span>
           )}
+          <button onClick={() => setExporting(true)} title="Export stems, sections and a DAW project">Export</button>
           <button onClick={() => window.songbreak.shell.openPath(song.dir)}>Open folder</button>
           <div className="menu-wrap">
             <button disabled={busy} onClick={() => setMenu(!menu)}>
@@ -331,6 +334,7 @@ export function SongView({ songId, system, job, jobs, refreshKey, onReanalyze, o
         )}
         {tab === 'instruments' && <Instruments song={song} onSeek={seek} />}
         {tab === 'sections' && <Sections song={song} time={time} onSeek={seek} />}
+        {exporting && <ExportDialog song={song} onClose={() => setExporting(false)} />}
         {tab === 'mix' && (
           <Mix
             song={song}

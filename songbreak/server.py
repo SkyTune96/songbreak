@@ -69,6 +69,14 @@ class RenameIn(BaseModel):
     name: str
 
 
+class ExportIn(BaseModel):
+    dest: str
+    stems: list[str]
+    format: str = "wav"
+    split_sections: bool = False
+    include_original: bool = False
+
+
 def llm_available(model: str | None, host: str, default: str | None) -> str | None:
     """The Ollama model to use, or None if Ollama isn't running or the model isn't pulled."""
     model = model or default
@@ -323,6 +331,15 @@ def create_app(library_root: Path) -> FastAPI:
         data = json.loads(a.read_text(encoding="utf-8"))
         data.update(id=song_id, dir=str(d), source_file=next((p.name for p in d.glob("source.*")), None))
         return data
+
+    @app.post("/api/songs/{song_id}/export")
+    def post_export(song_id: str, body: ExportIn):
+        d = library.dir(song_id)
+        dest = Path(body.dest)
+        if not dest.is_dir():
+            raise HTTPException(400, f"not a folder: {dest}")
+        from .export import export
+        return export(d, dest, body.stems, body.format, body.split_sections, body.include_original)
 
     practice_lock = threading.Lock()
 

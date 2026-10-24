@@ -336,10 +336,26 @@ input.rename { flex: 1; min-width: 0; font: inherit; color: var(--text); backgro
 .chord span { pointer-events: none; }
 .chord.minor { color: #b9b0ff; }
 .chord.now { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chord.tiny { padding: 0; border-color: transparent; background: var(--line); top: 9px; height: 8px; }
+.chord.tiny.now { background: var(--accent); }
 .now-chord { font: 700 15px var(--mono); padding: 1px 9px; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--line-2); color: var(--text); margin-left: 6px; }
 .lyrics-toggle { display: flex; align-items: center; gap: 6px; margin: 0 0 8px 10px; }
-.lyric-line.chorded .lyric-text .w { position: relative; display: inline-block; padding-top: 16px; }
-.lyric-line .lyric-text .w .c { position: absolute; top: 0; left: 0; font: 700 12px var(--mono); color: var(--accent-2) !important; text-shadow: none !important; white-space: nowrap; }
+/* Lead-sheet layout: each word is a column with its chord (or an empty slot) on top, so a chord never
+   overlaps the next one and every line keeps the same height. */
+.lyric-line.chorded { align-items: flex-end; }
+.lyric-line.chorded .lyric-text { line-height: 1.25; }
+.lyric-line .lyric-text .w { display: inline-flex; flex-direction: column; vertical-align: bottom; }
+.lyric-line .lyric-text .w .c { height: 17px; padding-right: 6px; font: 700 12px var(--mono); color: var(--accent-2) !important; text-shadow: none !important; white-space: nowrap; }
+.lyric-line.now .lyric-text .w .t { color: var(--text-3); transition: color .1s; }
+.lyric-line.now .lyric-text .w.sung .t { color: #fff; text-shadow: 0 0 18px #7c6cff88; }
+
+/* export */
+.modal.export { width: min(640px, 92vw); }
+.export-stems { display: flex; flex-wrap: wrap; gap: 8px; }
+.stem-check { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--line-2); border-radius: 8px; cursor: pointer; text-transform: capitalize; background: var(--bg-2); }
+.stem-check.on { background: var(--panel-2); }
+.export-options { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.export-dir { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
 
 /* practice */
 .practice { display: flex; align-items: center; gap: 8px; }

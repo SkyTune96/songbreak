@@ -78,9 +78,12 @@ export function Lyrics({ lines, sections, chords, time, playing, onSeek }: Props
                 <span className="lyric-text">
                   {index === current || marks
                     ? line.words.map((w, wi) => (
-                        <span key={wi} className={`w ${index === current && w.start <= time ? 'sung' : ''}`}>
-                          {marks?.[wi] && <span className="c">{marks[wi]}</span>}
-                          {w.word}{' '}
+                        // The space sits between word boxes: inside an inline-block a trailing space is dropped.
+                        <span key={wi}>
+                          <span className={`w ${index === current && w.start <= time ? 'sung' : ''}`}>
+                            {marks && <span className="c">{marks[wi] ?? ''}</span>}
+                            <span className="t">{w.word}</span>
+                          </span>{' '}
                         </span>
                       ))
                     : line.text}
