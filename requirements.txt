@@ -11,6 +11,7 @@ scipy
 imageio-ffmpeg
 requests
 psutil
+python-stretch  # Signalsmith Stretch (MIT): time-stretch/pitch-shift for mashups
 fastapi
 pydantic
 uvicorn[standard]

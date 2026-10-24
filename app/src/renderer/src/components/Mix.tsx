@@ -72,13 +72,22 @@ function MashupPanel({ song, busy, onMashup, onOpen }: Omit<Props, 'jobs'>) {
         </div>
       </div>
 
-      {m.engine === 'librosa' && (
-        <div className="muted small">
-          Stretched with librosa. For cleaner vocals, install{' '}
-          <a href="https://breakfastquay.com/rubberband/" target="_blank" rel="noreferrer">Rubber Band</a> (put{' '}
-          <code>rubberband.exe</code> on your PATH) and re-render: Songbreak uses it automatically.
-        </div>
-      )}
+      <div className="muted small">
+        {m.engine === 'rubberband' && 'Stretched with Rubber Band.'}
+        {m.engine === 'signalsmith' && (
+          <>
+            Stretched with Signalsmith Stretch. Optional:{' '}
+            <a href="https://breakfastquay.com/rubberband/" target="_blank" rel="noreferrer">Rubber Band</a> on your PATH is
+            used instead when present.
+          </>
+        )}
+        {m.engine === 'librosa' && (
+          <>
+            Stretched with librosa's fallback, which can sound phasey: Signalsmith Stretch isn't installed. Use{' '}
+            <strong>Settings → Python environment</strong> to run setup again, then re-render.
+          </>
+        )}
+      </div>
     </div>
   )
 }

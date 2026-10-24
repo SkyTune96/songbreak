@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 # Import name -> distribution name, where they differ. torch is installed separately (CUDA index).
-DIST = {"imageio_ffmpeg": "imageio-ffmpeg", "soundfile": "soundfile", "yaml": "pyyaml"}
+DIST = {"imageio_ffmpeg": "imageio-ffmpeg", "soundfile": "soundfile", "yaml": "pyyaml", "python_stretch": "python-stretch"}
 PROVIDED = {"torch", "torchaudio", "songbreak"}
 
 listed = set()

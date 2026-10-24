@@ -90,7 +90,7 @@ export async function runSetup(emit: Emit): Promise<boolean> {
 
     log = stage('Checking the installation')
     // Import what the engine's server imports, so a missing package fails here rather than at launch.
-    await run(py, ['-c', 'import torch, demucs, transformers, librosa, fastapi, uvicorn, psutil; print("torch", torch.__version__, "cuda", torch.cuda.is_available())'], log)
+    await run(py, ['-c', 'import torch, demucs, transformers, librosa, fastapi, uvicorn, psutil, python_stretch; print("torch", torch.__version__, "cuda", torch.cuda.is_available())'], log)
     emit({ step: total, total, label: 'Ready', done: true })
     return true
   } catch (e) {

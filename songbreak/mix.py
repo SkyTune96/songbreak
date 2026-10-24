@@ -125,11 +125,28 @@ def _rubberband() -> str | None:
     return shutil.which("rubberband") or shutil.which("rubberband-r3")
 
 
-def stretch_shift(audio: np.ndarray, sr: int, rate: float, semitones: int) -> tuple[np.ndarray, str]:
-    """Time-stretch by `rate` (>1 = faster) and pitch-shift. Rubber Band if installed, else librosa."""
+def _signalsmith():
+    try:
+        import python_stretch
+        return python_stretch.Signalsmith
+    except ImportError:
+        return None
+
+
+ENGINES = ("rubberband", "signalsmith", "librosa")
+
+
+def stretch_shift(audio: np.ndarray, sr: int, rate: float, semitones: int,
+                  engine: str | None = None) -> tuple[np.ndarray, str]:
+    """Time-stretch by `rate` (>1 = faster) and pitch-shift.
+
+    Engines, best first: Rubber Band (GPL, only if its CLI is on PATH), Signalsmith Stretch
+    (MIT, installed with Songbreak), librosa's phase vocoder (last resort). `engine` forces one.
+    """
     if abs(rate - 1) < 1e-3 and semitones == 0:
         return audio, "none"
-    rb = _rubberband()
+    rb = _rubberband() if engine in (None, "rubberband") else None
+    ss = _signalsmith() if engine in (None, "signalsmith") else None
     if rb:
         with tempfile.TemporaryDirectory() as tmp:
             src, dst = Path(tmp) / "in.wav", Path(tmp) / "out.wav"
@@ -139,6 +156,13 @@ def stretch_shift(audio: np.ndarray, sr: int, rate: float, semitones: int) -> tu
                            check=True, capture_output=True)
             out, _ = audio_io.read(dst)
         return out, "rubberband"
+    if ss:
+        # The binding compensates its own latency: output starts in sync and is len/rate long.
+        s = ss.Stretch()
+        s.preset(audio.shape[0], float(sr))
+        s.setTimeFactor(rate)
+        s.setTransposeSemitones(float(semitones))
+        return s.process(np.ascontiguousarray(audio, dtype=np.float32)), "signalsmith"
     chans = []
     for ch in audio:
         y = librosa.effects.time_stretch(ch, rate=rate) if abs(rate - 1) >= 1e-3 else ch

@@ -34,8 +34,10 @@ narrator, conflict, arc, themes. Nothing is uploaded anywhere.
   stretch, Camelot key distance, energy, shared story themes). One click puts one song's vocals over
   the other's instrumental: time-stretched, key-shifted and beat-aligned so verse lands on verse
   and chorus on chorus. The mashup opens like any song, with stems and re-timed karaoke lyrics, and
-  you can nudge its key or timing a bar at a time. Install
-  [Rubber Band](https://breakfastquay.com/rubberband/) on your PATH for cleaner vocal stretching.
+  you can nudge its key or timing a bar at a time. Stretching uses the MIT-licensed
+  [Signalsmith Stretch](https://github.com/Signalsmith-Audio/signalsmith-stretch), installed with
+  Songbreak; if [Rubber Band](https://breakfastquay.com/rubberband/) (GPL) is on your PATH it's used
+  instead. `scripts/compare_engines.py` measures them against each other on your own songs.
 - **Sized to your hardware.** Detects your GPU and picks model sizes that fit. Stages run one at a
   time and hand VRAM back in between, so a 16 GB card runs the largest models without spilling.
 

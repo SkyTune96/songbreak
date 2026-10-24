@@ -97,7 +97,7 @@ export interface MashupInfo {
   semitones: number
   offset_bars: number
   vocal_offset_s: number
-  engine: 'rubberband' | 'librosa' | 'none'
+  engine: 'rubberband' | 'signalsmith' | 'librosa' | 'none'
   vocal_key_after: string | null
 }
 
