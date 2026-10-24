@@ -38,6 +38,11 @@ narrator, conflict, arc, themes. Nothing is uploaded anywhere.
   [Signalsmith Stretch](https://github.com/Signalsmith-Audio/signalsmith-stretch), installed with
   Songbreak; if [Rubber Band](https://breakfastquay.com/rubberband/) (GPL) is on your PATH it's used
   instead. `scripts/compare_engines.py` measures them against each other on your own songs.
+- **Story-arc playlists.** Pick songs (or a folder) and an arc (Rise & Resolve, Slow Burn,
+  Wind Down, Redemption, Tragedy). The local LLM reads each song's intensity and mood from its
+  story, an optimiser orders the songs to follow the arc while favouring smooth tempo/key
+  transitions, and the LLM writes the playlist's title, synopsis and a chapter line per song.
+  Plays start to finish with crossfades, with a seek bar and "skip to fade" to preview transitions.
 - **Folders.** ✦ Organize sorts your library into folders by shared story themes, named by the
   local LLM (or from the themes themselves without Ollama). Drag songs between folders, rename
   with a double-click, or right-click a song to move it, start a new AI-named folder, or delete it.

@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, setPort, type FolderData, type JobOptions, type LlmOpts, type MashupRequest } from './api'
+import { api, setPort, type FolderData, type JobOptions, type LlmOpts, type MashupRequest, type Playlist } from './api'
 import { Home } from './components/Home'
+import { PlaylistDialog } from './components/PlaylistDialog'
+import { PlaylistView } from './components/PlaylistView'
 import { Settings } from './components/Settings'
 import { Setup } from './components/Setup'
 import { Sidebar } from './components/Sidebar'
 import { SongView } from './components/SongView'
 import type { BackendStatus, Job, Settings as S, Song, SongSummary, SystemInfo } from './types'
 
-type View = 'home' | 'song' | 'settings'
+type View = 'home' | 'song' | 'settings' | 'playlist'
 
 export function App() {
   const [backend, setBackend] = useState<BackendStatus>({ state: 'starting', log: [] })
@@ -23,6 +25,9 @@ export function App() {
   const [folders, setFolders] = useState<FolderData>({ folders: [], assignments: {} })
   const [renameId, setRenameId] = useState<string | null>(null)
   const [organizing, setOrganizing] = useState(false)
+  const [playlists, setPlaylists] = useState<Playlist[]>([])
+  const [selectedPlaylist, setSelectedPlaylist] = useState<string | null>(null)
+  const [playlistDialog, setPlaylistDialog] = useState<{ folder: string | null } | null>(null)
   const selectedRef = useRef(selected)
   selectedRef.current = selected
   const ready = backend.state === 'ready'
@@ -46,6 +51,7 @@ export function App() {
 
   const loadLibrary = useCallback(() => {
     api.folders().then(setFolders).catch(() => undefined)
+    api.playlists().then(setPlaylists).catch(() => undefined)
     return api.library().then(setSongs).catch(() => undefined)
   }, [])
 
@@ -105,8 +111,12 @@ export function App() {
         setJobs((js) => ({ ...js, [job.id]: job }))
         if (job.status === 'done') {
           setRefresh((r) => ({ ...r, [job.song_id]: (r[job.song_id] ?? 0) + 1 }))
-          // Open a new mashup as soon as it's rendered; it's what the user just asked for.
-          if (!selectedRef.current || job.kind === 'mashup') {
+          if (job.kind === 'playlist') {
+            loadLibrary()
+            setSelectedPlaylist(job.song_id)
+            setView('playlist')
+          } else if (!selectedRef.current || job.kind === 'mashup') {
+            // Open a new mashup as soon as it's rendered; it's what the user just asked for.
             setSelected(job.song_id)
             setView('song')
           }
@@ -249,6 +259,13 @@ export function App() {
         onMove={(songId, folderId) => folderAction(() => api.moveSong(songId, folderId))}
         onDeleteSong={remove}
         onOrganize={organize}
+        playlists={playlists}
+        selectedPlaylist={selectedPlaylist}
+        onSelectPlaylist={(id) => {
+          setSelectedPlaylist(id)
+          setView('playlist')
+        }}
+        onNewPlaylist={(folder) => setPlaylistDialog({ folder })}
         jobs={jobList}
         selected={selected}
         view={view}
@@ -266,6 +283,22 @@ export function App() {
       <main>
         {view === 'home' && <Home system={system} onAdd={addViaDialog} />}
         {view === 'settings' && <Settings system={system} backend={backend} onRefreshSystem={loadSystem} />}
+        {view === 'playlist' && (() => {
+          const pl = playlists.find((x) => x.id === selectedPlaylist)
+          return pl ? (
+            <PlaylistView
+              key={pl.id}
+              playlist={pl}
+              onOpenSong={(id) => (setSelected(id), setView('song'))}
+              onRename={(name) => name.trim() && name !== pl.name && folderAction(() => api.renamePlaylist(pl.id, name))}
+              onDelete={() => {
+                if (!confirm(`Delete the playlist “${pl.name}”? The songs stay in your library.`)) return
+                folderAction(() => api.deletePlaylist(pl.id))
+                setView('home')
+              }}
+            />
+          ) : null
+        })()}
         {view === 'song' && selected && (
           <SongView
             key={selected}
@@ -281,6 +314,22 @@ export function App() {
           />
         )}
       </main>
+      {playlistDialog && (
+        <PlaylistDialog
+          songs={songs}
+          folders={folders}
+          initialFolder={playlistDialog.folder}
+          onClose={() => setPlaylistDialog(null)}
+          onCreate={async (ids, arc) => {
+            setPlaylistDialog(null)
+            try {
+              await api.createPlaylist(ids, arc, await llmOpts())
+            } catch (e) {
+              notify(`Couldn't start the playlist: ${(e as Error).message}`)
+            }
+          }}
+        />
+      )}
       {dragging && (
         <div className="drop-overlay">
           <div>Drop to analyse</div>

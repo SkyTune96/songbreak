@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { FolderData } from '../api'
+import type { FolderData, Playlist } from '../api'
 import type { Job, SongSummary, SystemInfo } from '../types'
 import { fmtTime } from '../util'
 import { Logo } from './Logo'
@@ -27,6 +27,10 @@ interface Props {
   onMove: (songId: string, folderId: string | null) => void
   onDeleteSong: (song: SongSummary) => void
   onOrganize: () => void
+  playlists: Playlist[]
+  selectedPlaylist: string | null
+  onSelectPlaylist: (id: string) => void
+  onNewPlaylist: (folderId: string | null) => void
 }
 
 const STAGE_NAMES: Record<string, string> = {
@@ -37,7 +41,8 @@ const STAGE_NAMES: Record<string, string> = {
   instruments: 'Naming instruments',
   story: 'Writing the story',
   peaks: 'Finishing',
-  mashup: 'Rendering mashup'
+  mashup: 'Rendering mashup',
+  playlist: 'Building story playlist'
 }
 const DRAG_TYPE = 'application/x-songbreak-song'
 const COLLAPSE_KEY = 'songbreak.collapsedFolders'
@@ -179,6 +184,28 @@ export function Sidebar(p: Props) {
       )}
 
       <div className="side-label library-head">
+        <span>Story playlists</span>
+        <span className="lib-actions">
+          <button className="link" title="Order songs so the playlist tells a story" disabled={p.songs.filter((s) => s.kind !== 'mashup').length < 2} onClick={() => p.onNewPlaylist(null)}>
+            + New
+          </button>
+        </span>
+      </div>
+      <div className="playlist-list">
+        {p.playlists.map((pl) => (
+          <button
+            key={pl.id}
+            className={`song-item ${p.view === 'playlist' && p.selectedPlaylist === pl.id ? 'on' : ''}`}
+            onClick={() => p.onSelectPlaylist(pl.id)}
+          >
+            <span className="song-item-title">≋ {pl.name}</span>
+            <span className="song-item-meta">{pl.arc_name} · {pl.songs.length} songs</span>
+          </button>
+        ))}
+        {!p.playlists.length && <div className="muted small pad">Turn a folder into a playlist that tells a story.</div>}
+      </div>
+
+      <div className="side-label library-head">
         <span>Library</span>
         <span className="lib-actions">
           <button className="link" title="New folder" onClick={() => p.onNewFolder([])}>+ Folder</button>
@@ -216,6 +243,7 @@ export function Sidebar(p: Props) {
                 )}
                 <span className="folder-count">{items.length}</span>
                 <span className="folder-actions" onClick={(e) => e.stopPropagation()}>
+                  <button className="link" title="Make a story playlist from this folder" onClick={() => p.onNewPlaylist(f.id)}>≋</button>
                   <button className="link" title="Rename" onClick={() => p.onStartRename(f.id)}>✎</button>
                   <button className="link" title="Delete folder (songs are kept)" onClick={() => p.onDeleteFolder(f.id, f.name)}>🗑</button>
                 </span>

@@ -57,6 +57,28 @@ class AssignIn(BaseModel):
     folder_id: str | None
 
 
+class PlaylistIn(BaseModel):
+    songs: list[str]
+    arc: str = "rise_resolve"
+    name: str | None = None
+    llm_model: str | None = None
+    ollama_host: str = "http://localhost:11434"
+
+
+class RenameIn(BaseModel):
+    name: str
+
+
+def llm_available(model: str | None, host: str, default: str | None) -> str | None:
+    """The Ollama model to use, or None if Ollama isn't running or the model isn't pulled."""
+    model = model or default
+    try:
+        names = [m["name"] for m in requests.get(f"{host}/api/tags", timeout=2).json().get("models", [])]
+    except requests.RequestException:
+        return None
+    return model if model and any(n == model or n.split(":")[0] == model for n in names) else None
+
+
 class AutoIn(BaseModel):
     llm_model: str | None = None
     ollama_host: str = "http://localhost:11434"
@@ -152,6 +174,11 @@ class Worker(threading.Thread):
         return self._enqueue({"kind": "mashup", "song_id": song_id, "title": title, "source": "",
                               "options": body.model_dump()})
 
+    def submit_playlist(self, body: PlaylistIn) -> dict:
+        pid = uuid.uuid4().hex[:10]
+        return self._enqueue({"kind": "playlist", "song_id": pid, "title": body.name or "Story playlist",
+                              "source": "", "options": body.model_dump()})
+
     def _enqueue(self, fields: dict) -> dict:
         job = {"id": uuid.uuid4().hex[:12], **fields, "status": "queued", "stage": None, "stage_progress": 0.0,
                "progress": 0.0, "message": "Waiting in queue", "error": None,
@@ -197,7 +224,17 @@ class Worker(threading.Thread):
                 job["log"] = (job["log"] + [line])[-_LOG_LINES:]
 
             try:
-                if job["kind"] == "mashup":
+                if job["kind"] == "playlist":
+                    from .hardware import detect
+                    from .playlists import PlaylistStore, build
+                    o = job["options"]
+                    model = llm_available(o.get("llm_model"), o["ollama_host"], detect().llm_model)
+                    result = build(self.library.root, o["songs"], o["arc"], model, o["ollama_host"], o.get("name"),
+                                   progress=lambda f, msg: progress("playlist", f, msg))
+                    result["id"] = job["song_id"]
+                    PlaylistStore(self.library.root).put(result)
+                    job["title"] = result["name"]
+                elif job["kind"] == "mashup":
                     from .mix import render_mashup
                     o = job["options"]
                     render_mashup(self.library.root, o["vocals"], o["instrumental"], job["song_id"],
@@ -303,6 +340,43 @@ def create_app(library_root: Path) -> FastAPI:
         if d.exists():
             shutil.rmtree(d)
         folders.forget(song_id)
+        playlist_store.forget_song(song_id)
+        hub.publish({"type": "library"})
+        return {"ok": True}
+
+    # ---------- playlists ----------
+    from .playlists import PlaylistStore, arc_catalog
+    playlist_store = PlaylistStore(library.root)
+
+    @app.get("/api/arcs")
+    def get_arcs():
+        return arc_catalog()
+
+    @app.get("/api/playlists")
+    def get_playlists():
+        items = playlist_store.load()
+        for p in items:  # where each track's audio is, for playback (files can change after a re-analysis)
+            for s in p["songs"]:
+                d = library.root / s["id"]
+                s["source_file"] = next((f.name for f in d.glob("source.*")), None) if d.exists() else None
+        return items
+
+    @app.post("/api/playlists")
+    def post_playlist(body: PlaylistIn):
+        return worker.submit_playlist(body)
+
+    @app.patch("/api/playlists/{pid}")
+    def patch_playlist(pid: str, body: RenameIn):
+        try:
+            p = playlist_store.rename(pid, body.name)
+        except KeyError:
+            raise HTTPException(404, "no such playlist")
+        hub.publish({"type": "library"})
+        return p
+
+    @app.delete("/api/playlists/{pid}")
+    def delete_playlist(pid: str):
+        playlist_store.delete(pid)
         hub.publish({"type": "library"})
         return {"ok": True}
 
@@ -320,12 +394,7 @@ def create_app(library_root: Path) -> FastAPI:
 
     def llm_for(model: str | None, host: str) -> str | None:
         """The model to name folders with, or None if Ollama isn't up / the model isn't pulled."""
-        model = model or (system.get("profile") or {}).get("llm_model")
-        try:
-            names = [m["name"] for m in requests.get(f"{host}/api/tags", timeout=2).json().get("models", [])]
-        except requests.RequestException:
-            return None
-        return model if any(n == model or n.split(":")[0] == model for n in names) else None
+        return llm_available(model, host, (system.get("profile") or {}).get("llm_model"))
 
     @app.get("/api/folders")
     def get_folders():
