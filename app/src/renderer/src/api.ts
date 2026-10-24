@@ -32,7 +32,28 @@ export interface JobOptions {
   skip?: string[]
 }
 
+export interface Match {
+  id: string
+  title: string
+  score: number
+  has_vocals: boolean
+  tempo: { from: number | null; to: number | null; stretch: number; score: number }
+  key: { from: string | null; to: string | null; camelot: [string | null, string | null]; distance: number; shift: number }
+  energy: number
+  shared_themes: string[]
+}
+
+export interface MashupRequest {
+  vocals: string
+  instrumental: string
+  semitones?: number | null
+  offset_bars?: number
+  song_id?: string
+}
+
 export const api = {
+  matches: (id: string) => req<Match[]>(`/api/songs/${encodeURIComponent(id)}/matches`),
+  mashup: (body: MashupRequest) => req<Job>('/api/mashups', { method: 'POST', body: JSON.stringify(body) }),
   system: (ollamaHost?: string) =>
     req<SystemInfo>(`/api/system${ollamaHost ? `?ollama_host=${encodeURIComponent(ollamaHost)}` : ''}`),
   library: () => req<SongSummary[]>('/api/library'),

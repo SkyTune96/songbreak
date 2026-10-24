@@ -83,7 +83,10 @@ export function Sidebar(p: Props) {
             className={`song-item ${p.view === 'song' && p.selected === s.id ? 'on' : ''}`}
             onClick={() => p.onSelect(s.id)}
           >
-            <span className="song-item-title">{s.title}</span>
+            <span className="song-item-title">
+              {s.kind === 'mashup' && <span className="tag">mashup</span>}
+              {s.title}
+            </span>
             <span className="song-item-meta">
               {fmtTime(s.duration)}
               {s.key ? ` · ${s.key}` : ''}

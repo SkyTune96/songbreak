@@ -30,6 +30,12 @@ narrator, conflict, arc, themes. Nothing is uploaded anywhere.
   section (synth, strings, brass…), plus vocal style, genre and mood.
 - **Story.** Song form, point of view and energy arc always; with [Ollama](https://ollama.com), a
   local LLM adds the narrator, central conflict, a beat-by-beat arc, themes and literary devices.
+- **Automixer.** The Mix tab ranks songs in your library that mix well with the current one (tempo
+  stretch, Camelot key distance, energy, shared story themes). One click puts one song's vocals over
+  the other's instrumental: time-stretched, key-shifted and beat-aligned so verse lands on verse
+  and chorus on chorus. The mashup opens like any song, with stems and re-timed karaoke lyrics, and
+  you can nudge its key or timing a bar at a time. Install
+  [Rubber Band](https://breakfastquay.com/rubberband/) on your PATH for cleaner vocal stretching.
 - **Sized to your hardware.** Detects your GPU and picks model sizes that fit. Stages run one at a
   time and hand VRAM back in between, so a 16 GB card runs the largest models without spilling.
 

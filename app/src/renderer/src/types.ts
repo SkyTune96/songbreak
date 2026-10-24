@@ -90,10 +90,23 @@ export interface Profile {
   llm_model: string
 }
 
+export interface MashupInfo {
+  vocals_from: { id: string; title: string; tempo: number; key: string }
+  instrumental_from: { id: string; title: string; tempo: number; key: string }
+  stretch: number
+  semitones: number
+  offset_bars: number
+  vocal_offset_s: number
+  engine: 'rubberband' | 'librosa' | 'none'
+  vocal_key_after: string | null
+}
+
 export interface Song {
   id: string
   dir: string
   title: string
+  kind?: 'song' | 'mashup'
+  mashup?: MashupInfo
   source: string
   source_file: string | null
   analyzed_at?: string
@@ -133,12 +146,14 @@ export interface SongSummary {
   has_story: boolean
   analyzed_at: string | null
   summary: string | null
+  kind: 'song' | 'mashup'
 }
 
 export type JobStatus = 'queued' | 'running' | 'done' | 'error' | 'cancelled'
 
 export interface Job {
   id: string
+  kind: 'analyze' | 'mashup'
   song_id: string
   title: string
   source: string

@@ -26,7 +26,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from . import __version__
-from .pipeline import Cancelled, Options, overall
+from .pipeline import WEIGHTS, Cancelled, Options, overall
 
 _ID_RE = re.compile(r"^[\w\-. ()&',!]+$")
 _LOG_LINES = 200
@@ -36,6 +36,14 @@ class JobIn(BaseModel):
     path: str
     options: dict = {}
     song_id: str | None = None  # set to re-analyse an existing song into the same folder
+
+
+class MashupIn(BaseModel):
+    vocals: str  # song id the vocal comes from
+    instrumental: str  # song id the backing comes from
+    semitones: int | None = None  # None = match keys automatically
+    offset_bars: int = 0
+    song_id: str | None = None  # set to re-render an existing mashup in place
 
 
 class Hub:
@@ -87,6 +95,7 @@ class Library:
             "sections": len(st.get("sections", [])), "has_lyrics": bool((d.get("lyrics") or {}).get("lines")),
             "has_story": "llm" in story, "analyzed_at": d.get("analyzed_at"),
             "summary": (story.get("llm") or {}).get("one_line_summary"),
+            "kind": d.get("kind", "song"),
         }
 
     def list(self) -> list[dict]:
@@ -114,8 +123,20 @@ class Worker(threading.Thread):
             raise HTTPException(404, f"file not found: {src}")
         song_id = body.song_id or self.library.new_id(src.stem, src)
         self.library.dir(song_id)
-        job = {"id": uuid.uuid4().hex[:12], "song_id": song_id, "title": src.stem, "source": str(src),
-               "options": body.options, "status": "queued", "stage": None, "stage_progress": 0.0,
+        return self._enqueue({"kind": "analyze", "song_id": song_id, "title": src.stem, "source": str(src),
+                              "options": body.options})
+
+    def submit_mashup(self, body: MashupIn) -> dict:
+        for sid in (body.vocals, body.instrumental):
+            if not (self.library.dir(sid) / "analysis.json").exists():
+                raise HTTPException(404, f"not analysed: {sid}")
+        title = f"{body.vocals} × {body.instrumental}"
+        song_id = body.song_id or self.library.new_id(title, Path(title))
+        return self._enqueue({"kind": "mashup", "song_id": song_id, "title": title, "source": "",
+                              "options": body.model_dump()})
+
+    def _enqueue(self, fields: dict) -> dict:
+        job = {"id": uuid.uuid4().hex[:12], **fields, "status": "queued", "stage": None, "stage_progress": 0.0,
                "progress": 0.0, "message": "Waiting in queue", "error": None,
                "created": time.time(), "started": None, "finished": None, "cancel": False, "log": []}
         with self.lock:
@@ -146,7 +167,8 @@ class Worker(threading.Thread):
             last_emit = [0.0]
 
             def progress(stage: str, frac: float, msg: str) -> None:
-                job.update(stage=stage, stage_progress=round(frac, 3), progress=round(overall(stage, frac), 3),
+                total = overall(stage, frac) if stage in WEIGHTS else frac  # mashups are a single stage
+                job.update(stage=stage, stage_progress=round(frac, 3), progress=round(total, 3),
                            message=msg or job["message"])
                 now = time.time()
                 if now - last_emit[0] > 0.25 or frac in (0.0, 1.0):  # don't flood the UI from per-chunk callbacks
@@ -158,10 +180,17 @@ class Worker(threading.Thread):
                 job["log"] = (job["log"] + [line])[-_LOG_LINES:]
 
             try:
-                from .pipeline import run as run_pipeline
-                run_pipeline(Path(job["source"]), self.library.dir(job["song_id"]),
-                             Options.from_dict(job["options"]), progress=progress,
-                             cancelled=lambda: job["cancel"], log=log)
+                if job["kind"] == "mashup":
+                    from .mix import render_mashup
+                    o = job["options"]
+                    render_mashup(self.library.root, o["vocals"], o["instrumental"], job["song_id"],
+                                  semitones=o.get("semitones"), offset_bars=o.get("offset_bars", 0),
+                                  progress=lambda f, msg: progress("mashup", f, msg))
+                else:
+                    from .pipeline import run as run_pipeline
+                    run_pipeline(Path(job["source"]), self.library.dir(job["song_id"]),
+                                 Options.from_dict(job["options"]), progress=progress,
+                                 cancelled=lambda: job["cancel"], log=log)
                 job.update(status="done", progress=1.0, message="Done")
             except Cancelled:
                 job.update(status="cancelled", message="Cancelled")
@@ -262,6 +291,17 @@ def create_app(library_root: Path) -> FastAPI:
     @app.post("/api/jobs")
     def post_job(body: JobIn):
         return worker.submit(body)
+
+    @app.get("/api/songs/{song_id}/matches")
+    def get_matches(song_id: str):
+        if not (library.dir(song_id) / "analysis.json").exists():
+            raise HTTPException(404, "not analysed")
+        from .mix import matches
+        return matches(song_id, library.root)
+
+    @app.post("/api/mashups")
+    def post_mashup(body: MashupIn):
+        return worker.submit_mashup(body)
 
     @app.get("/api/jobs")
     def get_jobs():

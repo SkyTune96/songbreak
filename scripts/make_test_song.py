@@ -4,7 +4,9 @@ Intro (0-9.6 s) - Verse 1 - Chorus - Verse 2 - Chorus - Outro (86.4-96 s) at 100
 with drums, bass, saw-pad chords and text-to-speech "vocals". Windows only (uses SAPI for the voice):
 
     powershell -File scripts/tts.ps1 -OutDir samples/tts
-    python scripts/make_test_song.py samples/tts samples/test_song.wav
+    python scripts/make_test_song.py samples/tts samples/test_song.wav [BPM] [TRANSPOSE_SEMITONES]
+
+A second song at another tempo/key (e.g. `108 2` = 108 BPM in B minor) is handy for testing mashups.
 """
 import sys
 from pathlib import Path
@@ -14,7 +16,8 @@ import numpy as np
 import soundfile as sf
 
 SR = 44100
-BPM = 100
+BPM = float(sys.argv[3]) if len(sys.argv) > 3 else 100
+TRANSPOSE = 2 ** ((float(sys.argv[4]) if len(sys.argv) > 4 else 0) / 12)
 BEAT = 60 / BPM
 BAR = 4 * BEAT
 tts_dir, out = Path(sys.argv[1]), Path(sys.argv[2])
@@ -60,6 +63,7 @@ def section(bars, chords, drums=True, loud=1.0):
     buf = np.zeros(int(bars * BAR * SR))
     for b in range(bars):
         root, chord = chords[b % 4]
+        root, chord = root * TRANSPOSE, [f * TRANSPOSE for f in chord]
         t0 = b * BAR
         for f in chord:
             place(buf, tone(f, BAR, "saw", 0.06 * loud), t0)

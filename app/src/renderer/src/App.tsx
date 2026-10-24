@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, setPort, type JobOptions } from './api'
+import { api, setPort, type JobOptions, type MashupRequest } from './api'
 import { Home } from './components/Home'
 import { Settings } from './components/Settings'
 import { Setup } from './components/Setup'
@@ -64,7 +64,8 @@ export function App() {
         setJobs((js) => ({ ...js, [job.id]: job }))
         if (job.status === 'done') {
           setRefresh((r) => ({ ...r, [job.song_id]: (r[job.song_id] ?? 0) + 1 }))
-          if (!selectedRef.current) {
+          // Open a new mashup as soon as it's rendered; it's what the user just asked for.
+          if (!selectedRef.current || job.kind === 'mashup') {
             setSelected(job.song_id)
             setView('song')
           }
@@ -111,6 +112,14 @@ export function App() {
     const paths = await window.songbreak.dialogs.audio()
     if (paths.length) submit(paths)
   }, [submit])
+
+  const mashup = async (body: MashupRequest): Promise<void> => {
+    try {
+      await api.mashup(body)
+    } catch (e) {
+      notify(`Couldn't start the mashup: ${(e as Error).message}`)
+    }
+  }
 
   const reanalyze = (song: Song, full: boolean): void => {
     submit([song.source], { force: full }, song.id)
@@ -204,9 +213,12 @@ export function App() {
             songId={selected}
             system={system}
             job={activeJob}
+            jobs={jobList}
             refreshKey={refresh[selected] ?? 0}
             onReanalyze={reanalyze}
             onDelete={remove}
+            onMashup={mashup}
+            onOpen={(id) => setSelected(id)}
           />
         )}
       </main>

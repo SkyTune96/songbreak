@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { api } from '../api'
+import { api, type MashupRequest } from '../api'
+import { Mix } from './Mix'
 import { ORIGINAL, StemPlayer, type TrackState } from '../player'
 import type { Job, Song, SystemInfo } from '../types'
 import { fmtTime, letterColor, STEM_ORDER, sumPeaks } from '../util'
@@ -10,18 +11,21 @@ import { Sections } from './Sections'
 import { Story } from './Story'
 import { Waveform } from './Waveform'
 
-type Tab = 'mixer' | 'lyrics' | 'story' | 'instruments' | 'sections'
+type Tab = 'mixer' | 'lyrics' | 'story' | 'instruments' | 'sections' | 'mix'
 
 interface Props {
   songId: string
   system: SystemInfo | null
   job: Job | undefined
+  jobs: Job[]
   refreshKey: number
   onReanalyze: (song: Song, full: boolean) => void
   onDelete: (song: Song) => void
+  onMashup: (req: MashupRequest) => void
+  onOpen: (id: string) => void
 }
 
-export function SongView({ songId, system, job, refreshKey, onReanalyze, onDelete }: Props) {
+export function SongView({ songId, system, job, jobs, refreshKey, onReanalyze, onDelete, onMashup, onOpen }: Props) {
   const [song, setSong] = useState<Song | null>(null)
   const [peaks, setPeaks] = useState<Record<string, number[]>>({})
   const [error, setError] = useState<string | null>(null)
@@ -156,18 +160,22 @@ export function SongView({ songId, system, job, refreshKey, onReanalyze, onDelet
           <button onClick={() => window.songbreak.shell.openPath(song.dir)}>Open folder</button>
           <div className="menu-wrap">
             <button disabled={busy} onClick={() => setMenu(!menu)}>
-              Re-analyze ▾
+              {song.kind === 'mashup' ? 'More ▾' : 'Re-analyze ▾'}
             </button>
             {menu && (
               <div className="menu" onMouseLeave={() => setMenu(false)}>
-                <button onClick={() => (setMenu(false), onReanalyze(song, false))}>
-                  <strong>Quick</strong>
-                  <span>Reuse stems and lyrics; redo structure, instruments and story</span>
-                </button>
-                <button onClick={() => (setMenu(false), onReanalyze(song, true))}>
-                  <strong>Full</strong>
-                  <span>Separate and transcribe again from scratch</span>
-                </button>
+                {song.kind !== 'mashup' && (
+                  <>
+                    <button onClick={() => (setMenu(false), onReanalyze(song, false))}>
+                      <strong>Quick</strong>
+                      <span>Reuse stems and lyrics; redo structure, instruments and story</span>
+                    </button>
+                    <button onClick={() => (setMenu(false), onReanalyze(song, true))}>
+                      <strong>Full</strong>
+                      <span>Separate and transcribe again from scratch</span>
+                    </button>
+                  </>
+                )}
                 <button className="danger" onClick={() => (setMenu(false), onDelete(song))}>
                   <strong>Delete</strong>
                   <span>Remove this song's analysis and stems</span>
@@ -217,7 +225,8 @@ export function SongView({ songId, system, job, refreshKey, onReanalyze, onDelet
             ['lyrics', 'Lyrics'],
             ['story', 'Story'],
             ['instruments', 'Instruments'],
-            ['sections', 'Sections']
+            ['sections', 'Sections'],
+            ['mix', song.kind === 'mashup' ? 'Mashup' : 'Mix']
           ] as [Tab, string][]
         ).map(([id, label]) => (
           <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>
@@ -252,6 +261,15 @@ export function SongView({ songId, system, job, refreshKey, onReanalyze, onDelet
         )}
         {tab === 'instruments' && <Instruments song={song} onSeek={seek} />}
         {tab === 'sections' && <Sections song={song} time={time} onSeek={seek} />}
+        {tab === 'mix' && (
+          <Mix
+            song={song}
+            busy={busy}
+            jobs={jobs}
+            onOpen={onOpen}
+            onMashup={(vocals, instrumental, opts) => onMashup({ vocals, instrumental, ...opts })}
+          />
+        )}
       </div>
     </div>
   )
