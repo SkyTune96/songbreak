@@ -37,7 +37,7 @@ export function Settings({ system, backend, onRefreshSystem }: Props) {
 
   if (!s) return null
   const p = system?.profile
-  const models = system?.ollama.models ?? []
+  const models = (system?.ollama.models ?? []).filter((m) => !m.toLowerCase().includes('embed')) // embedding models can't write
 
   return (
     <div className="settings">

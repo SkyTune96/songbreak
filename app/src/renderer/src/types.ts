@@ -130,7 +130,7 @@ export interface Song {
     song: { genre: Scored[]; mood: Scored[]; instruments: Scored[]; vocal_style: Scored[] }
     sections: SectionTags[]
   }
-  story?: { heuristics: Heuristics; llm?: StoryLLM; llm_model?: string; note?: string }
+  story?: { heuristics: Heuristics; llm?: StoryLLM; llm_model?: string; model_note?: string; note?: string }
   timings?: Record<string, { seconds: number; peak_vram_gb: number }>
 }
 

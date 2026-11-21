@@ -92,7 +92,10 @@ export function Story({ song, ollamaRunning, busy, onGenerate }: Props) {
             {!!llm.themes?.length && <ChipRow label="Themes" items={llm.themes} />}
             {!!llm.devices?.length && <ChipRow label="Devices" items={llm.devices} />}
           </div>
-          <div className="muted small">Written by {story.llm_model} running locally through Ollama.</div>
+          <div className="muted small">
+            Written by {story.llm_model} running locally through Ollama.
+            {story.model_note && ` ${story.model_note.replace(/`/g, '')} Choose a different model in Settings → Story model.`}
+          </div>
         </>
       ) : (
         <div className="callout">

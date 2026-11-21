@@ -78,14 +78,10 @@ class ExportIn(BaseModel):
     soundcraft: bool = False
 
 
-def llm_available(model: str | None, host: str, default: str | None) -> str | None:
-    """The Ollama model to use, or None if Ollama isn't running or the model isn't pulled."""
-    model = model or default
-    try:
-        names = [m["name"] for m in requests.get(f"{host}/api/tags", timeout=2).json().get("models", [])]
-    except requests.RequestException:
-        return None
-    return model if model and any(n == model or n.split(":")[0] == model for n in names) else None
+def llm_available(model: str | None, host: str, default: str | None, vram_gb: float = 8.0) -> str | None:
+    """The Ollama model to use (falling back to the best installed one), or None if Ollama isn't usable."""
+    from .story import resolve_model
+    return resolve_model(model, default or "qwen3:8b", host, vram_gb)[0]
 
 
 class AutoIn(BaseModel):
@@ -246,7 +242,8 @@ class Worker(threading.Thread):
                     from .hardware import detect
                     from .playlists import PlaylistStore, build
                     o = job["options"]
-                    model = llm_available(o.get("llm_model"), o["ollama_host"], detect().llm_model)
+                    prof = detect()
+                    model = llm_available(o.get("llm_model"), o["ollama_host"], prof.llm_model, prof.vram_gb)
                     result = build(self.library.root, o["songs"], o["arc"], model, o["ollama_host"], o.get("name"),
                                    progress=lambda f, msg: progress("playlist", f, msg))
                     result["id"] = job["song_id"]
@@ -476,7 +473,8 @@ def create_app(library_root: Path) -> FastAPI:
 
     def llm_for(model: str | None, host: str) -> str | None:
         """The model to name folders with, or None if Ollama isn't up / the model isn't pulled."""
-        return llm_available(model, host, (system.get("profile") or {}).get("llm_model"))
+        prof = system.get("profile") or {}
+        return llm_available(model, host, prof.get("llm_model"), prof.get("vram_gb") or 8.0)
 
     @app.get("/api/folders")
     def get_folders():

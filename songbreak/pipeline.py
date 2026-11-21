@@ -168,14 +168,13 @@ def run(src: Path, out: Path, opts: Options, progress: Progress | None = None,
         prompt = story_mod.build_prompt(src.stem, structure, tags, lines, heur)
         (out / "story_prompt.md").write_text(prompt, encoding="utf-8")
         if "story" not in opts.skip and opts.llm == "ollama":
-            available = story_mod.ollama_models(opts.ollama_host)
-            model = opts.llm_model or profile.llm_model
-            if available is None:
-                story["note"] = ("Ollama isn't running, so only the heuristic story analysis ran. "
-                                 f"Install Ollama and `ollama pull {model}`, or paste story_prompt.md into any chatbot.")
-            elif not any(m == model or m.split(":")[0] == model for m in available):
-                story["note"] = f"Ollama is running but `{model}` isn't pulled. Run `ollama pull {model}`."
+            model, model_note = story_mod.resolve_model(opts.llm_model, profile.llm_model, opts.ollama_host,
+                                                        profile.vram_gb)
+            if model is None:
+                story["note"] = model_note
             else:
+                if model_note:
+                    story["model_note"] = model_note
                 try:
                     story["llm"] = stage("story", lambda: story_mod.ask_ollama(prompt, model, opts.ollama_host),
                                          f"Asking {model}")

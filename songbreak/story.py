@@ -123,13 +123,56 @@ Analyse this song as a piece of storytelling. Reply with ONLY a JSON object:
     return "\n".join(out)
 
 
-def ollama_models(host: str) -> list[str] | None:
+def ollama_catalog(host: str) -> list[dict] | None:
+    """Installed Ollama models with size and family, or None if Ollama isn't running."""
     try:
         r = requests.get(f"{host}/api/tags", timeout=3)
         r.raise_for_status()
-        return [m["name"] for m in r.json().get("models", [])]
+        return [{"name": m["name"], "size_gb": m.get("size", 0) / 1024**3,
+                 "family": (m.get("details") or {}).get("family", "")} for m in r.json().get("models", [])]
     except requests.RequestException:
         return None
+
+
+def ollama_models(host: str) -> list[str] | None:
+    cat = ollama_catalog(host)
+    return None if cat is None else [m["name"] for m in cat]
+
+
+def _installed(name: str, want: str) -> bool:
+    return name == want or name.split(":")[0] == want
+
+
+def _is_chat(m: dict) -> bool:
+    return "embed" not in m["name"].lower() and m["family"] not in ("bert", "nomic-bert")
+
+
+def resolve_model(requested: str | None, default: str, host: str, vram_gb: float) -> tuple[str | None, str | None]:
+    """The model to write stories with, and a note when it isn't the one asked for.
+
+    Uses the requested model (Settings) or the hardware default if installed. Otherwise it falls back
+    to the best installed chat model instead of giving up: the largest that fits in VRAM, else the
+    smallest. Embedding-only models are never picked.
+    """
+    cat = ollama_catalog(host)
+    if cat is None:
+        return None, ("Ollama isn't running, so only the heuristic story analysis ran. "
+                      f"Start Ollama (or install it and `ollama pull {default}`), or paste story_prompt.md into any chatbot.")
+    for want in (requested, default):
+        hit = next((m["name"] for m in cat if want and _installed(m["name"], want)), None)
+        if hit:
+            note = None if want == requested or not requested else f"`{requested}` isn't installed; used `{hit}`."
+            return hit, note
+    chats = [m for m in cat if _is_chat(m)]
+    if not chats:
+        return None, f"Ollama has no chat models installed. Run `ollama pull {default}`."
+    budget = max(vram_gb - 1.5, 2.0)  # leave headroom for the context window
+    # Stock models before custom ones of the same size: a custom model may carry its own persona prompt.
+    stock = ("qwen", "gemma", "llama", "mistral", "phi", "deepseek", "granite", "olmo")
+    fits = sorted((m for m in chats if m["size_gb"] <= budget),
+                  key=lambda m: (not m["name"].lower().startswith(stock), -m["size_gb"]))
+    pick = fits[0] if fits else min(chats, key=lambda m: m["size_gb"])
+    return pick["name"], f"`{requested or default}` isn't installed, so `{pick['name']}` wrote this story."
 
 
 def ask_ollama(prompt: str, model: str, host: str) -> dict:
